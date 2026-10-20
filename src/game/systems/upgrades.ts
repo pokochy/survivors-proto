@@ -9,9 +9,9 @@
 // ============================================================
 
 import type { UpgradeOption } from "@/game/core/types";
-import { EVOLUTIONS } from "@/game/data/evolutions";
+import { EVOLUTIONS, superEvolutionFor } from "@/game/data/evolutions";
 import { weaponLevelEffectAt } from "@/game/weapons/registry";
-import { WeaponManager, weaponName, weaponEvolvedName } from "@/game/systems/WeaponManager";
+import { WeaponManager, weaponName, weaponFormName } from "@/game/systems/WeaponManager";
 import { AccessoryManager, accessoryName } from "@/game/systems/AccessoryManager";
 
 /** 레벨업 1회에 보여줄 선택지 수 */
@@ -30,13 +30,13 @@ function optionKey(o: UpgradeOption): string {
   return o.kind + (o.weaponType ?? o.accessoryType ?? "");
 }
 
-export function pickUpgrades(wm: WeaponManager, am: AccessoryManager): UpgradeOption[] {
+export function pickUpgrades(wm: WeaponManager, am: AccessoryManager, characterId?: string): UpgradeOption[] {
   const pool: UpgradeOption[] = [];
 
   // Weapon level-up options (owned, not maxed) — 다음 레벨에서 얻는 효과를 표시
   for (const w of wm.getUpgradeableWeapons()) {
     const effect = weaponLevelEffectAt(w, w.level + 1);
-    const displayName = w.evolved ? weaponEvolvedName(w.type) : weaponName(w.type);
+    const displayName = weaponFormName(w);
     pool.push({
       kind: "weaponLevel",
       label: `${displayName} 강화 (Lv ${w.level + 1})`,
@@ -62,12 +62,15 @@ export function pickUpgrades(wm: WeaponManager, am: AccessoryManager): UpgradeOp
   const evolvable = wm.getEvolvableWeapons((accType) => am.hasAccessory(accType));
   for (const w of evolvable) {
     const evo = EVOLUTIONS[w.type];
+    const sup = superEvolutionFor(characterId, w.type);
     pool.push({
       kind: "weaponEvolve",
-      label: `${weaponName(w.type)} 진화 → ${evo.evolvedName}`,
+      label: sup
+        ? `${weaponName(w.type)} 초진화 → ${sup.name}`
+        : `${weaponName(w.type)} 진화 → ${evo.evolvedName}`,
       weaponType: w.type,
-      weaponName: evo.evolvedName,
-      effectDesc: evo.desc,
+      weaponName: sup ? sup.name : evo.evolvedName,
+      effectDesc: sup ? sup.desc : evo.desc,
     });
   }
 

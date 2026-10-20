@@ -3,20 +3,12 @@
 // ============================================================
 
 import { CONFIG } from "@/game/data/config";
-import type { EnemyState, Gem, PlayerState } from "@/game/core/types";
+import type { EnemyState, Gem, PlayerState, SpecialPickup } from "@/game/core/types";
 import { isLowQuality } from "@/game/render/quality";
 import { getIconSprite, drawSpriteCentered } from "@/game/render/iconSprites";
 import { UI_ICONS } from "@/assets/icons/map";
 import { getPixelImage, drawStrip, drawShadow } from "@/game/render/pixel";
-
-/** Pixel crystal clusters per gem tier: [column, row] in tiles/nature.png + draw scale. */
-const GEM_TILES: ReadonlyArray<readonly [number, number, number]> = [
-  [1, 14, 1.25], // teal   (value < 2)
-  [2, 14, 1.5],  // violet (2–4)
-  [3, 14, 1.6],  // green  (5–9)
-  [0, 14, 1.8],  // amber  (10–19)
-  [0, 14, 2.3],  // big amber (20+)
-];
+import { drawCentered } from "@/game/render/sprites";
 
 function gemTierIndex(value: number): number {
   if (value >= 20) return 4;
@@ -26,33 +18,17 @@ function gemTierIndex(value: number): number {
   return 0;
 }
 
-/**
- * High quality: gems are pixel crystals, the treasure is a pixel chest.
- * Returns false while images load (caller draws the original shapes).
- */
-function renderPixelGems(ctx: CanvasRenderingContext2D, gems: Gem[], now: number): boolean {
-  const nature = getPixelImage("tiles/nature");
+/** High quality treasure chest. XP gems are drawn as spheres by the caller. */
+function renderPixelChest(ctx: CanvasRenderingContext2D, g: Gem, now: number): boolean {
   const chest = getPixelImage("items/chest");
-  if (!nature || !chest) return false;
-  for (const g of gems) {
-    if (!g.alive) continue;
-    if (g.isTreasure) {
-      // Same pulsing golden halo as before (decoration) + the chest sprite
-      const pulse = 0.7 + Math.sin(now * 0.006) * 0.3;
-      ctx.fillStyle = `rgba(251, 191, 36, ${pulse * 0.25})`;
-      ctx.beginPath();
-      ctx.arc(g.x, g.y, g.radius + 10, 0, Math.PI * 2);
-      ctx.fill();
-      drawShadow(ctx, g.x, g.y + 14, 3);
-      drawStrip(ctx, "items/chest", 0, g.x, g.y, 2.5);
-      continue;
-    }
-    const [c, r, scale] = GEM_TILES[gemTierIndex(g.value)];
-    const s = 16 * scale;
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(nature, c * 16, r * 16, 16, 16, Math.round(g.x - s / 2), Math.round(g.y - s / 2), s, s);
-    ctx.imageSmoothingEnabled = true;
-  }
+  if (!chest) return false;
+  const pulse = 0.7 + Math.sin(now * 0.006) * 0.3;
+  ctx.fillStyle = `rgba(251, 191, 36, ${pulse * 0.25})`;
+  ctx.beginPath();
+  ctx.arc(g.x, g.y, g.radius + 10, 0, Math.PI * 2);
+  ctx.fill();
+  drawShadow(ctx, g.x, g.y + 14, 3);
+  drawStrip(ctx, "items/chest", 0, g.x, g.y, 2.5);
   return true;
 }
 
@@ -85,18 +61,63 @@ export function dropTreasure(enemy: EnemyState): Gem {
   };
 }
 
+const SPECIALS: SpecialPickup[] = ["magnet", "heart", "bomb"];
+
+/** About 1/300 kills. The three kinds are equally likely. Null when the roll misses. */
+export function rollSpecialDrop(enemy: EnemyState): Gem | null {
+  if (Math.random() >= CONFIG.special.dropChance) return null;
+  const pickup = SPECIALS[Math.floor(Math.random() * SPECIALS.length)];
+  return {
+    id: ++idCounter,
+    x: enemy.x + (Math.random() - 0.5) * 18,
+    y: enemy.y + (Math.random() - 0.5) * 18,
+    radius: CONFIG.special.radius,
+    value: 0,
+    alive: true,
+    pickup,
+  };
+}
+
 /** Updates gems — magnet pull + collection. Returns { xp, treasure } separately. */
 export interface GemUpdateResult {
   xp: number;
   treasure: boolean;
+  magnet: boolean;
+  heart: boolean;
+  bomb: boolean;
 }
 
 export function updateGems(gems: Gem[], player: PlayerState, dt: number): GemUpdateResult {
   let collectedXp = 0;
   let treasure = false;
+  let magnet = false;
+  let heart = false;
+  let bomb = false;
 
   for (const g of gems) {
     if (!g.alive) continue;
+
+    if (g.pickup) {
+      const pdx = player.x - g.x;
+      const pdy = player.y - g.y;
+      const pdist2 = pdx * pdx + pdy * pdy;
+      const pickupR2 = player.pickupRadius * player.pickupRadius;
+      if (pdist2 < pickupR2) {
+        const dist = Math.sqrt(pdist2);
+        if (dist > 0.1) {
+          g.x += (pdx / dist) * CONFIG.gem.magnetSpeed * dt;
+          g.y += (pdy / dist) * CONFIG.gem.magnetSpeed * dt;
+        }
+      }
+      const collectR = player.radius + g.radius + 4;
+      if (pdist2 < collectR * collectR) {
+        g.alive = false;
+        if (g.pickup === "magnet") magnet = true;
+        else if (g.pickup === "heart") heart = true;
+        else bomb = true;
+      }
+      continue;
+    }
 
     if (g.isTreasure) {
       // Treasure has larger pickup radius
@@ -123,12 +144,13 @@ export function updateGems(gems: Gem[], player: PlayerState, dt: number): GemUpd
     const dy = player.y - g.y;
     const dist2 = dx * dx + dy * dy;
 
-    // Magnet pull
-    if (dist2 < player.pickupRadius * player.pickupRadius) {
+    // Magnet pull. A magnet pickup marks the gem so it comes from anywhere on the map.
+    const speed = g.attracted ? CONFIG.special.pullSpeed : CONFIG.gem.magnetSpeed;
+    if (g.attracted || dist2 < player.pickupRadius * player.pickupRadius) {
       const dist = Math.sqrt(dist2);
       if (dist > 0.1) {
-        g.x += (dx / dist) * CONFIG.gem.magnetSpeed * dt;
-        g.y += (dy / dist) * CONFIG.gem.magnetSpeed * dt;
+        g.x += (dx / dist) * speed * dt;
+        g.y += (dy / dist) * speed * dt;
       }
     }
 
@@ -140,7 +162,7 @@ export function updateGems(gems: Gem[], player: PlayerState, dt: number): GemUpd
     }
   }
 
-  return { xp: collectedXp, treasure };
+  return { xp: collectedXp, treasure, magnet, heart, bomb };
 }
 
 export function cullGems(gems: Gem[]): Gem[] {
@@ -157,23 +179,40 @@ export function cullGems(gems: Gem[]): Gem[] {
 }
 
 /**
- * Merges gems that are too far from the player into the nearest in-range gem,
+ * Merges XP gems that are too far from the player into the nearest in-range gem,
  * adding their value. If no in-range gem exists, the far gem is teleported
  * to the edge of the range so it stays collectable.
+ * Treasure chests are never merged; a far chest is only pulled to the edge.
  */
+function pullToRangeEdge(g: Gem, px: number, py: number, maxDist: number): void {
+  const dx = px - g.x;
+  const dy = py - g.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist > 0.1) {
+    g.x = px - (dx / dist) * maxDist;
+    g.y = py - (dy / dist) * maxDist;
+  }
+}
+
 export function mergeFarGems(gems: Gem[], px: number, py: number, maxDist: number): Gem[] {
   const maxDist2 = maxDist * maxDist;
   const inRange: Gem[] = [];
   const far: Gem[] = [];
+  const treasures: Gem[] = [];
   for (const g of gems) {
     if (!g.alive) continue;
+    // Chests and special pickups are not XP. Folding one into a gem would delete it.
+    if (g.isTreasure || g.pickup) {
+      const dx = g.x - px;
+      const dy = g.y - py;
+      if (dx * dx + dy * dy > maxDist2) pullToRangeEdge(g, px, py, maxDist);
+      treasures.push(g);
+      continue;
+    }
     const dx = g.x - px;
     const dy = g.y - py;
-    if (dx * dx + dy * dy > maxDist2) {
-      far.push(g);
-    } else {
-      inRange.push(g);
-    }
+    if (dx * dx + dy * dy > maxDist2) far.push(g);
+    else inRange.push(g);
   }
 
   for (const f of far) {
@@ -191,33 +230,35 @@ export function mergeFarGems(gems: Gem[], px: number, py: number, maxDist: numbe
     }
     if (nearest) {
       nearest.value += f.value;
+      if (f.attracted) nearest.attracted = true;
       // Grow radius slightly to reflect merged value
       nearest.radius = Math.min(nearest.radius + 0.5, 10);
       f.alive = false;
     } else {
       // No in-range gem — pull the far gem to the edge of range toward the player
-      const dx = px - f.x;
-      const dy = py - f.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist > 0.1) {
-        f.x = px - (dx / dist) * maxDist;
-        f.y = py - (dy / dist) * maxDist;
-      }
+      pullToRangeEdge(f, px, py, maxDist);
       inRange.push(f);
     }
   }
 
-  return inRange;
+  return inRange.concat(treasures);
 }
 
 /**
- * When the gem count exceeds a threshold, merges nearby gems together to keep
+ * When the XP gem count exceeds a threshold, merges nearby gems together to keep
  * the field manageable. Each gem merges into the closest other gem within
  * `mergeRadius`, accumulating value and radius.
+ * Treasure chests are left untouched, so an elite drop cannot vanish into a gem.
  */
 export function consolidateGems(gems: Gem[], maxCount: number, mergeRadius: number): Gem[] {
-  const alive = gems.filter((g) => g.alive);
-  if (alive.length <= maxCount) return alive;
+  const treasures: Gem[] = [];
+  const alive: Gem[] = [];
+  for (const g of gems) {
+    if (!g.alive) continue;
+    if (g.isTreasure || g.pickup) treasures.push(g);
+    else alive.push(g);
+  }
+  if (alive.length <= maxCount) return alive.concat(treasures);
 
   // Single-pass greedy merge: merge each gem into the nearest already-visited gem if within mergeRadius.
   const mergeR2 = mergeRadius * mergeRadius;
@@ -236,9 +277,12 @@ export function consolidateGems(gems: Gem[], maxCount: number, mergeRadius: numb
     }
     if (best) {
       const total = best.value + g.value;
-      best.x = (best.x * best.value + g.x * g.value) / total;
-      best.y = (best.y * best.value + g.y * g.value) / total;
+      if (total > 0) {
+        best.x = (best.x * best.value + g.x * g.value) / total;
+        best.y = (best.y * best.value + g.y * g.value) / total;
+      }
       best.value = total;
+      if (g.attracted) best.attracted = true;
       best.radius = Math.min(best.radius + 0.5, 12);
     } else {
       merged.push(g);
@@ -265,49 +309,109 @@ export function consolidateGems(gems: Gem[], maxCount: number, mergeRadius: numb
     }
     const target = merged[nearestIdx];
     const total = target.value + last.value;
-    target.x = (target.x * target.value + last.x * last.value) / total;
-    target.y = (target.y * target.value + last.y * last.value) / total;
+    if (total > 0) {
+      target.x = (target.x * target.value + last.x * last.value) / total;
+      target.y = (target.y * target.value + last.y * last.value) / total;
+    }
     target.value = total;
+    if (last.attracted) target.attracted = true;
     target.radius = Math.min(target.radius + 0.5, 12);
   }
 
-  return merged;
+  return merged.concat(treasures);
 }
 
-// Value-based gem tiers for clear visual distinction
-interface GemTier {
-  fill: string;
-  stroke: string;
-  glow: string;
+// Baked once per size. Light sits up-left so the orb reads as a sphere, not a flat disc.
+interface SphereTier {
+  light: string;
+  body: string;
+  edge: string;
   radiusBonus: number;
 }
 
-// Pre-defined gem tiers to avoid per-frame object allocation
-const GEM_TIERS: GemTier[] = [
-  { fill: CONFIG.gem.color, stroke: "#93c5fd", glow: "", radiusBonus: 0 },          // value < 2
-  { fill: "#a78bfa", stroke: "#ddd6fe", glow: "rgba(167, 139, 250, 0.28)", radiusBonus: 1.5 }, // value 2-4
-  { fill: "#34d399", stroke: "#a7f3d0", glow: "rgba(52, 211, 153, 0.30)", radiusBonus: 2.5 }, // value 5-9
-  { fill: "#f472b6", stroke: "#fbcfe8", glow: "rgba(244, 114, 182, 0.30)", radiusBonus: 3.5 }, // value 10-19
-  { fill: "#fbbf24", stroke: "#fde68a", glow: "rgba(251, 191, 36, 0.35)", radiusBonus: 5 },   // value 20+
+const SPHERE_TIERS: SphereTier[] = [
+  { light: "#f0f9ff", body: CONFIG.gem.color, edge: "#38bdf8", radiusBonus: 3 },    // value < 2, bright sky
+  { light: "#e0f2fe", body: "#38bdf8", edge: "#0284c7", radiusBonus: 4.5 },         // 2–4
+  { light: "#bae6fd", body: "#0ea5e9", edge: "#0369a1", radiusBonus: 6 },           // 5–9
+  { light: "#7dd3fc", body: "#0284c7", edge: "#075985", radiusBonus: 7.5 },         // 10–19
+  { light: "#38bdf8", body: "#0369a1", edge: "#0c4a6e", radiusBonus: 9 },           // 20+
 ];
 
-function getGemTier(value: number): GemTier {
-  if (value >= 20) return GEM_TIERS[4];
-  if (value >= 10) return GEM_TIERS[3];
-  if (value >= 5)  return GEM_TIERS[2];
-  if (value >= 2)  return GEM_TIERS[1];
-  return GEM_TIERS[0];
+const sphereCache = new Map<string, HTMLCanvasElement>();
+
+function xpSphere(radius: number, tier: SphereTier): HTMLCanvasElement {
+  const r = Math.max(1, Math.round(radius));
+  const key = `${r}|${tier.body}`;
+  const hit = sphereCache.get(key);
+  if (hit) return hit;
+
+  const cv = document.createElement("canvas");
+  cv.width = r * 2;
+  cv.height = r * 2;
+  const g = cv.getContext("2d");
+  if (g) {
+    const grad = g.createRadialGradient(r * 0.38, r * 0.36, r * 0.08, r * 0.5, r * 0.52, r);
+    grad.addColorStop(0, tier.light);
+    grad.addColorStop(0.45, tier.body);
+    grad.addColorStop(1, tier.edge);
+    g.fillStyle = grad;
+    g.beginPath();
+    g.arc(r, r, r, 0, Math.PI * 2);
+    g.fill();
+  }
+  sphereCache.set(key, cv);
+  return cv;
+}
+
+const SPECIAL_LOOK = {
+  magnet: { fill: "#7c3aed", ring: "#ede9fe", icon: "acc-magnetCharm", iconColor: "#f5f3ff" },
+  heart: { fill: "#e11d48", ring: "#ffe4e6", icon: "", iconColor: "#fff1f2" },
+  bomb: { fill: "#ea580c", ring: "#ffedd5", icon: "weapon-bomb", iconColor: "#fff7ed" },
+} as const;
+
+/** Opaque disc plus a light icon. Same look at both quality settings. */
+function drawSpecial(ctx: CanvasRenderingContext2D, g: Gem): void {
+  const look = SPECIAL_LOOK[g.pickup ?? "magnet"];
+  ctx.fillStyle = look.fill;
+  ctx.beginPath();
+  ctx.arc(g.x, g.y, g.radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = look.ring;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  if (g.pickup === "heart") {
+    drawHeart(ctx, g.x, g.y - 0.5, g.radius * 0.62);
+    return;
+  }
+  const icon = getIconSprite(look.icon, look.iconColor, Math.round(g.radius * 1.55));
+  if (icon) drawSpriteCentered(ctx, icon, g.x, g.y);
+}
+
+function drawHeart(ctx: CanvasRenderingContext2D, x: number, y: number, s: number): void {
+  ctx.fillStyle = "#fff1f2";
+  ctx.beginPath();
+  ctx.moveTo(x, y + s * 0.72);
+  ctx.bezierCurveTo(x - s * 1.15, y + s * 0.15, x - s * 0.72, y - s * 0.85, x, y - s * 0.28);
+  ctx.bezierCurveTo(x + s * 0.72, y - s * 0.85, x + s * 1.15, y + s * 0.15, x, y + s * 0.72);
+  ctx.fill();
 }
 
 export function renderGems(ctx: CanvasRenderingContext2D, gems: Gem[]): void {
   const low = isLowQuality();
-  if (!low && renderPixelGems(ctx, gems, performance.now())) return;
-  const pulse = 0.7 + Math.sin(performance.now() * 0.006) * 0.3;
+  const now = performance.now();
+  const pulse = 0.7 + Math.sin(now * 0.006) * 0.3;
   for (const g of gems) {
     if (!g.alive) continue;
 
+    if (g.pickup) {
+      drawSpecial(ctx, g);
+      continue;
+    }
+
     if (g.isTreasure) {
-      // Pulsing golden treasure chest
+      if (!low && renderPixelChest(ctx, g, now)) continue;
+
       ctx.fillStyle = `rgba(251, 191, 36, ${pulse * 0.3})`;
       ctx.beginPath();
       ctx.arc(g.x, g.y, g.radius + 8, 0, Math.PI * 2);
@@ -318,7 +422,6 @@ export function renderGems(ctx: CanvasRenderingContext2D, gems: Gem[]): void {
         drawSpriteCentered(ctx, chest, g.x, g.y);
         continue;
       }
-      // Fallback while the chest image loads: original golden orb
       ctx.fillStyle = "#fbbf24";
       ctx.beginPath();
       ctx.arc(g.x, g.y, g.radius, 0, Math.PI * 2);
@@ -328,7 +431,6 @@ export function renderGems(ctx: CanvasRenderingContext2D, gems: Gem[]): void {
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      // Star sparkle in center
       ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
       ctx.beginPath();
       ctx.arc(g.x, g.y, g.radius * 0.35, 0, Math.PI * 2);
@@ -336,32 +438,8 @@ export function renderGems(ctx: CanvasRenderingContext2D, gems: Gem[]): void {
       continue;
     }
 
-    const tier = getGemTier(g.value);
+    const tier = SPHERE_TIERS[gemTierIndex(g.value)];
     const r = g.radius + tier.radiusBonus;
-
-    // Glow for merged gems (decoration — skipped in low quality)
-    if (tier.glow && !low) {
-      ctx.fillStyle = tier.glow;
-      ctx.beginPath();
-      ctx.arc(g.x, g.y, r + 4, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    ctx.fillStyle = tier.fill;
-    ctx.beginPath();
-    ctx.arc(g.x, g.y, r, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.strokeStyle = tier.stroke;
-    ctx.lineWidth = g.value > 1 ? 1.5 : 1;
-    ctx.stroke();
-
-    // Inner sparkle for high-value gems (decoration)
-    if (g.value >= 5 && !low) {
-      ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
-      ctx.beginPath();
-      ctx.arc(g.x - r * 0.25, g.y - r * 0.25, r * 0.2, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    drawCentered(ctx, xpSphere(r, tier), g.x, g.y, r);
   }
 }

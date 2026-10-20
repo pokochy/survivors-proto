@@ -44,6 +44,8 @@ export interface WeaponUpdateArgs {
   dt: number;
   onKill: () => void;
   mods: WeaponMods;
+  /** Player movement angle (radians). Held while standing still. */
+  aim: number;
 }
 
 /**
@@ -146,14 +148,14 @@ const shuriken = defineWeapon<{ shurikens: ShurikenProjectile[] }>({
   levelEffect: shurikenLevelEffect,
 });
 
-/** 야생의 발톱 — 진화하면 브레스(전방 화염)로 상태가 교체된다 */
+/** 야생의 발톱 — 진화하면 브레스(전방 화염 입자)로 상태가 교체된다 */
 const claw = defineWeapon<{ claw: ClawState | null; breath: BreathState | null }>({
   renderOrder: 5,
   createState: (w) => ({ claw: createClawState(w), breath: null }),
   onLevelUp: (s, w) => ({ ...s, claw: createClawState(w) }),
   onEvolve: (_s, w) => ({ claw: null, breath: createBreathState(w) }),
   update: (s, a) => {
-    if (s.breath) updateBreath(s.breath, a.enemies, a.px, a.py, a.w, a.dt, a.onKill, a.mods);
+    if (s.breath) updateBreath(s.breath, a.enemies, a.px, a.py, a.w, a.dt, a.onKill, a.mods, a.aim);
     else if (s.claw) updateClaw(s.claw, a.enemies, a.px, a.py, a.w, a.dt, a.onKill, a.mods);
   },
   render: (ctx, s, p, w) => {

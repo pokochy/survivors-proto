@@ -55,6 +55,19 @@ export function HUD({ stats }: HUDProps) {
         </div>
       </div>
 
+      {stats.eliteSeconds != null && (
+        <div
+          className={`absolute left-1/2 top-5 flex -translate-x-1/2 items-center gap-2 rounded-lg border px-3 py-1.5 ${
+            stats.eliteSeconds <= 10 ? "border-red-500 bg-red-950/90" : "border-amber-400 bg-slate-950/90"
+          }`}
+        >
+          <GameIcon name={UI_ICONS.crown} size={16} className={stats.eliteSeconds <= 10 ? "text-red-300" : "text-amber-300"} />
+          <span className={`font-mono text-lg font-bold tabular-nums ${stats.eliteSeconds <= 10 ? "text-red-200" : "text-amber-200"}`}>
+            {Math.ceil(stats.eliteSeconds)}
+          </span>
+        </div>
+      )}
+
       {/* Top-right: HP bar + rerolls */}
       <div className="absolute top-4 right-4 w-48 rounded-lg bg-slate-950/40 px-2.5 py-2">
         <div className="flex items-center justify-between mb-1">

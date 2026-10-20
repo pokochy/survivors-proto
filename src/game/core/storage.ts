@@ -8,6 +8,7 @@
 //  ⚠ STORAGE_KEY 는 절대 바꾸지 않는다 (바꾸면 모든 기존 세이브가 사라진 것처럼 보인다).
 // ============================================================
 
+import { normalizeConstraintLevels } from "@/game/data/constraints";
 import {
   DEFAULT_GOLD,
   DEFAULT_OWNED,
@@ -20,7 +21,7 @@ const STORAGE_KEY = "vs_proto_save";
 export const SAVE_STORAGE_KEY = STORAGE_KEY;
 
 /** 현재 세이브 스키마 버전 */
-export const SAVE_SCHEMA_VERSION = 2;
+export const SAVE_SCHEMA_VERSION = 3;
 
 export interface SaveData {
   schemaVersion: number;
@@ -30,6 +31,8 @@ export interface SaveData {
   selectedCharacter: string;
   stars: number;
   completedAchievements: string[];
+  /** 제약 단계. 키는 constraints.ts 의 id, 값은 0(해제)부터. */
+  constraintLevels: Record<string, number>;
   /** 마지막 저장 시각(ms) — 원클릭 실행기의 디스크 백업과 비교할 때 사용 */
   updatedAt?: number;
 }
@@ -54,6 +57,8 @@ const MIGRATIONS: Record<number, (raw: RawSave) => RawSave> = {
       completedAchievements: achievements?.map((id) => (id.startsWith("max_") ? "evo_" + id.slice(4) : id)),
     };
   },
+  // v2 → v3: 로비 제약. 없는 세이브는 전부 해제.
+  2: (raw) => ({ ...raw, constraintLevels: raw.constraintLevels ?? {} }),
 };
 
 function defaultSave(): SaveData {
@@ -65,6 +70,7 @@ function defaultSave(): SaveData {
     selectedCharacter: "survivor",
     stars: 0,
     completedAchievements: [...DEFAULT_COMPLETED_ACHIEVEMENTS],
+    constraintLevels: normalizeConstraintLevels(undefined),
   };
 }
 
@@ -96,6 +102,7 @@ function normalize(raw: RawSave): SaveData {
     traitLevels: { ...base.traitLevels, ...(parsed.traitLevels ?? {}) },
     stars: parsed.stars ?? 0,
     completedAchievements: parsed.completedAchievements ?? base.completedAchievements,
+    constraintLevels: normalizeConstraintLevels(parsed.constraintLevels ?? raw.constraintLevels),
   };
 }
 

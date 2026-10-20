@@ -26,12 +26,17 @@ const FILES = [
     ["guardian", "Knight"],
     ["scout", "NinjaGreen"],
     ["mage", "NinjaMageBlack"],
-    ["linya", "NinjaDark"],
-    ["euroan", "Cavegirl"],
   ].flatMap(([id, src]) => [
     [`units/char-${id}.png`, `${CH}/${src}/SeparateAnim/Walk.png`],
     [`faces/char-${id}.png`, `${CH}/${src}/Faceset.png`],
   ]),
+  // Linya is a cat beastkin composited from Universal LPC (see art/linya/README.md).
+  // 32×32 frames, not the 16×16 Ninja Adventure sheet.
+  ["units/char-linya.png", "art/linya/char-linya-walk.png"],
+  ["faces/char-linya.png", "art/linya/char-linya-face.png"],
+  // Euroan is a red-haired man composited from Universal LPC (see art/euroan/README.md).
+  ["units/char-euroan.png", "art/euroan/char-euroan-walk.png"],
+  ["faces/char-euroan.png", "art/euroan/char-euroan-face.png"],
 
   // ---- Enemies: same 4×4 layout (wolf keeps its original public/assets/enemy/Wolf.png)
   ...[

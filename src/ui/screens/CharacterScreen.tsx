@@ -17,6 +17,7 @@ import {
   type OwnedCharacter,
 } from "@/game/data/progression";
 import { weaponName } from "@/game/systems/WeaponManager";
+import { breakthroughCombatMult } from "@/game/systems/traitHelper";
 import { EVOLUTIONS } from "@/game/data/evolutions";
 import { accessoryName } from "@/game/systems/AccessoryManager";
 import type { SaveData } from "@/game/core/storage";
@@ -206,15 +207,16 @@ export function CharacterScreen({ onBack, save, onUpdate }: CharacterScreenProps
               </div>
             </div>
 
-            {/* Stats — reflects level & star bonuses (base stats if unowned) */}
+            {/* Stats — level, stars, and 1돌파. Traits stay on the trait screen. */}
             {(() => {
               const stars = owned?.stars ?? 0;
               const level = owned?.level ?? 1;
+              const bt = breakthroughCombatMult(owned?.breakthrough ?? 0);
               const starBonus = 1 + stars * 0.05;
               const lvlBonus = 1 + (level - 1) * 0.03;
-              const effHp = def.hpMult * starBonus;
-              const effSpeed = def.speedMult * starBonus;
-              const effDmg = def.damageMult * starBonus * lvlBonus;
+              const effHp = def.hpMult * starBonus * bt.hp;
+              const effSpeed = def.speedMult * starBonus * bt.speed;
+              const effDmg = def.damageMult * starBonus * lvlBonus * bt.damage;
               const effAtkSpd = 1 / def.cooldownMult;
               return (
                 <div className="grid grid-cols-2 gap-3 mb-5">
@@ -248,11 +250,16 @@ export function CharacterScreen({ onBack, save, onUpdate }: CharacterScreenProps
               }
               const canLevel = owned.level < 10;
               const canStar = owned.stars < 5;
+              const bt = breakthroughCombatMult(owned.breakthrough);
+              const starBonus = 1 + owned.stars * 0.05;
+              const lvlBonus = 1 + (owned.level - 1) * 0.03;
               const nextLvlBonus = 1 + owned.level * 0.03;
               const nextStarBonus = 1 + (owned.stars + 1) * 0.05;
-              const nextDmgFromLevel = def.damageMult * (1 + owned.stars * 0.05) * nextLvlBonus;
-              const nextHpFromStar = def.hpMult * nextStarBonus;
-              const nextDmgFromStar = def.damageMult * nextStarBonus * (1 + (owned.level - 1) * 0.03);
+              const curHp = def.hpMult * starBonus * bt.hp;
+              const curDmg = def.damageMult * starBonus * lvlBonus * bt.damage;
+              const nextDmgFromLevel = def.damageMult * starBonus * nextLvlBonus * bt.damage;
+              const nextHpFromStar = def.hpMult * nextStarBonus * bt.hp;
+              const nextDmgFromStar = def.damageMult * nextStarBonus * lvlBonus * bt.damage;
               const isPlayChar = save.selectedCharacter === selectedId;
               return (
                 <>
@@ -282,7 +289,7 @@ export function CharacterScreen({ onBack, save, onUpdate }: CharacterScreenProps
                       <div className="rounded-lg border border-cyan-800/50 bg-cyan-950/30 px-3 py-2">
                         <p className="text-cyan-400 text-xs font-semibold mb-1">레벨업 시</p>
                         <p className="text-slate-300 text-xs">
-                          공격력 <span className="text-emerald-300 font-mono">{Math.round(def.damageMult * (1 + owned.stars * 0.05) * (1 + (owned.level - 1) * 0.03) * 100)}%</span>
+                          공격력 <span className="text-emerald-300 font-mono">{Math.round(curDmg * 100)}%</span>
                           <span className="text-slate-500"> → </span>
                           <span className="text-emerald-300 font-mono">{Math.round(nextDmgFromLevel * 100)}%</span>
                           <span className="text-emerald-400 ml-1">(+3%)</span>
@@ -315,12 +322,12 @@ export function CharacterScreen({ onBack, save, onUpdate }: CharacterScreenProps
                       <div className="rounded-lg border border-amber-800/50 bg-amber-950/30 px-3 py-2">
                         <p className="text-amber-400 text-xs font-semibold mb-1">각성 시</p>
                         <p className="text-slate-300 text-xs">
-                          체력 <span className="text-emerald-300 font-mono">{Math.round(def.hpMult * (1 + owned.stars * 0.05) * 100)}%</span>
+                          체력 <span className="text-emerald-300 font-mono">{Math.round(curHp * 100)}%</span>
                           <span className="text-slate-500"> → </span>
                           <span className="text-emerald-300 font-mono">{Math.round(nextHpFromStar * 100)}%</span>
                         </p>
                         <p className="text-slate-300 text-xs">
-                          공격력 <span className="text-emerald-300 font-mono">{Math.round(def.damageMult * (1 + owned.stars * 0.05) * (1 + (owned.level - 1) * 0.03) * 100)}%</span>
+                          공격력 <span className="text-emerald-300 font-mono">{Math.round(curDmg * 100)}%</span>
                           <span className="text-slate-500"> → </span>
                           <span className="text-emerald-300 font-mono">{Math.round(nextDmgFromStar * 100)}%</span>
                         </p>
@@ -376,39 +383,28 @@ export function CharacterScreen({ onBack, save, onUpdate }: CharacterScreenProps
                   ))}
                 </div>
 
-                {/* Current/next tier description */}
+                {/* All tiers stay listed; achieved rows keep a check. */}
+                <div className="space-y-1.5 mb-3">
+                  {[1, 2, 3, 4].map((tier) => (
+                    <BreakthroughDesc key={tier} tier={tier} current={owned.breakthrough} def={def} />
+                  ))}
+                </div>
                 {owned.breakthrough < MAX_BREAKTHROUGH ? (
-                  <>
-                    <div className="space-y-1.5 mb-3">
-                      {owned.breakthrough < 1 && (
-                        <BreakthroughDesc tier={1} current={owned.breakthrough} />
-                      )}
-                      {owned.breakthrough < 2 && (
-                        <BreakthroughDesc tier={2} current={owned.breakthrough} />
-                      )}
-                      {owned.breakthrough < 3 && (
-                        <BreakthroughDesc tier={3} current={owned.breakthrough} def={def} />
-                      )}
-                      {owned.breakthrough < 4 && (
-                        <BreakthroughDesc tier={4} current={owned.breakthrough} def={def} />
-                      )}
-                    </div>
-                    <button
-                      onClick={handleBreakthrough}
-                      disabled={owned.memories < breakthroughMemoryCost(owned.breakthrough)}
-                      className="w-full flex items-center justify-center gap-2 rounded-lg border-2 border-violet-700 bg-violet-900/40 px-4 py-2.5
-                                 text-violet-200 text-sm font-semibold transition-all
-                                 hover:border-violet-500 hover:bg-violet-800/40 active:scale-[0.98]
-                                 disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <GameIcon name={UI_ICONS.breakthrough} size={16} className="text-violet-300" />
-                      {owned.breakthrough + 1}돌파 진행
-                      <span className="flex items-center gap-1 text-violet-300 text-xs font-mono">
-                        <GameIcon name={UI_ICONS.memory} size={12} />
-                        {breakthroughMemoryCost(owned.breakthrough)}
-                      </span>
-                    </button>
-                  </>
+                  <button
+                    onClick={handleBreakthrough}
+                    disabled={owned.memories < breakthroughMemoryCost(owned.breakthrough)}
+                    className="w-full flex items-center justify-center gap-2 rounded-lg border-2 border-violet-700 bg-violet-900/40 px-4 py-2.5
+                               text-violet-200 text-sm font-semibold transition-all
+                               hover:border-violet-500 hover:bg-violet-800/40 active:scale-[0.98]
+                               disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <GameIcon name={UI_ICONS.breakthrough} size={16} className="text-violet-300" />
+                    {owned.breakthrough + 1}돌파 진행
+                    <span className="flex items-center gap-1 text-violet-300 text-xs font-mono">
+                      <GameIcon name={UI_ICONS.memory} size={12} />
+                      {breakthroughMemoryCost(owned.breakthrough)}
+                    </span>
+                  </button>
                 ) : (
                   <div className="flex items-center justify-center gap-2 py-2">
                     <Sparkles className="w-4 h-4 text-violet-400" />

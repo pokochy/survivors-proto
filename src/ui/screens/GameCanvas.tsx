@@ -10,6 +10,7 @@ import { GameIcon } from "@/ui/components/GameIcon";
 import type { SaveData } from "@/game/core/storage";
 import { saveSave } from "@/game/core/storage";
 import { ACHIEVEMENTS, CHARACTERS, type AchievementDef } from "@/game/data/progression";
+import { constraintGoldMultiplier, constraintScore } from "@/game/data/constraints";
 import { weaponName } from "@/game/systems/WeaponManager";
 import { UI_ICONS, weaponIcon } from "@/ui/icons";
 import { weaponColor } from "@/ui/theme";
@@ -44,6 +45,8 @@ function initialStats(save: SaveData): GameStats {
     weapons: [{ type: startWeapon, name: weaponName(startWeapon), level: 1, evolved: false }],
     accessories: [],
     rerolls: 0,
+    eliteSeconds: null,
+    failedElite: false,
   };
 }
 
@@ -64,6 +67,7 @@ export function GameCanvas({ onExit, save }: { onExit: () => void; save: SaveDat
   const [upgradeOptions, setUpgradeOptions] = useState<UpgradeOption[]>([]);
   const [pendingAfter, setPendingAfter] = useState(0);
   const [goldEarned, setGoldEarned] = useState(0);
+  const [constraintBonus, setConstraintBonus] = useState({ score: 0, multiplier: 1 });
   const [newAchievements, setNewAchievements] = useState<AchievementDef[]>([]);
 
   // Keep a ref in sync so window listeners always see the current phase
@@ -89,8 +93,11 @@ export function GameCanvas({ onExit, save }: { onExit: () => void; save: SaveDat
       },
       onGameOver: (s) => {
         setStats(s);
-        const earned = scoreToGold(s.score);
+        const score = constraintScore(saveRef.current.constraintLevels);
+        const multiplier = constraintGoldMultiplier(score);
+        const earned = Math.floor(scoreToGold(s.score) * multiplier);
         setGoldEarned(earned);
+        setConstraintBonus({ score, multiplier });
 
         // Achievements: weapon evolved during this run
         const alreadyCompleted = new Set(saveRef.current.completedAchievements);
@@ -198,6 +205,7 @@ export function GameCanvas({ onExit, save }: { onExit: () => void; save: SaveDat
     setPhase("playing");
     setStats(initialStats(saveRef.current));
     setGoldEarned(0);
+    setConstraintBonus({ score: 0, multiplier: 1 });
     setNewAchievements([]);
   }, [setPhase]);
 
@@ -261,7 +269,10 @@ export function GameCanvas({ onExit, save }: { onExit: () => void; save: SaveDat
         {/* Game over screen */}
         {phase === "gameover" && (
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm px-6">
-            <h2 className="text-3xl font-bold text-red-500 mb-4 tracking-wide">GAME OVER</h2>
+            <h2 className={`text-3xl font-bold text-red-500 tracking-wide ${stats.failedElite ? "mb-2" : "mb-4"}`}>GAME OVER</h2>
+            {stats.failedElite && (
+              <p className="mb-4 text-sm font-semibold text-amber-200">엘리트를 30초 안에 처치하지 못했다</p>
+            )}
 
             <div className="rounded-xl border border-slate-700 bg-slate-900/70 px-7 py-5 mb-4 flex flex-col gap-2 min-w-[260px]">
               {[
@@ -292,6 +303,12 @@ export function GameCanvas({ onExit, save }: { onExit: () => void; save: SaveDat
                 </span>
                 <span className="text-amber-300 font-mono font-bold text-base">+{goldEarned} G</span>
               </div>
+              {constraintBonus.score > 0 && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-orange-300">제약 {constraintBonus.score}점</span>
+                  <span className="text-orange-300 font-mono font-bold">골드 ×{constraintBonus.multiplier.toFixed(2)}</span>
+                </div>
+              )}
               {starsGained > 0 && (
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-2 font-semibold text-cyan-400">

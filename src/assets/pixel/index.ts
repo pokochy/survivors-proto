@@ -3,7 +3,8 @@
 //
 //  Names are the path under this folder without ".png", e.g. "units/char-survivor".
 //  Files are copied here by `npm run assets:pixel` (scripts/sync-pixel-assets.mjs)
-//  from the CC0 source packs in art/. Data only — usable from game and ui.
+//  from the source packs in art/ (CC0, plus Linya under CC BY-SA — see art/linya).
+//  Data only — usable from game and ui.
 // ============================================================
 
 const files = import.meta.glob("./**/*.png", {

@@ -29,6 +29,8 @@ export interface PlayerState extends Entity {
   sprite?: string;
   /** Facing column of the walk sheet: 0 down, 1 up, 2 left, 3 right */
   facing: number;
+  /** Last movement angle in radians. Breath sprays this way, including while firing. */
+  aim: number;
   /** Seconds spent walking (drives the walk frame) */
   walkTime: number;
   moving: boolean;
@@ -51,6 +53,8 @@ export interface EnemyState extends Entity {
   dyingTimer: number;
   isElite: boolean;
   gemDropped: boolean;
+  /** Seconds left to kill this elite. Missing on normal enemies. */
+  eliteLife?: number;
   /** Facing column toward the player (pixel sprites): 0 down, 1 up, 2 left, 3 right */
   facing: number;
 }
@@ -69,6 +73,8 @@ export interface WeaponInstance {
   burstTimer: number;
   // Whether this weapon has evolved (post-Lv8 upgrade)
   evolved: boolean;
+  /** Special character evolved their own starting weapon into the stronger form. */
+  super: boolean;
 }
 
 // ---- Weapon modifiers (character/trait/accessory multipliers applied to every weapon) ----
@@ -184,7 +190,7 @@ export interface ClawState {
   slashDuration: number;
   slashActive: boolean; // true while slash animation is playing
   slashArc: number; // current arc spin offset for animation
-  slashBaseAngle: number; // base direction the slash faces (toward nearest enemy)
+  slashBaseAngle: number; // direction of the current slash; each combo hit aims again
   slashHits: Set<number>; // enemy IDs hit during current slash
   slashCount: number; // number of slashes per attack (1 base, 2+ at higher levels)
   slashesRemaining: number; // slashes left in current burst
@@ -194,26 +200,45 @@ export interface ClawState {
   cachedEvolved: boolean;
 }
 
-// ---- Breath (evolved claw: frontal flame cone) ----
+// ---- Breath particle (evolved claw: a spray of small flames) ----
+export interface BreathParticle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  frame: number;
+  /** 0–360 rainbow hue. Negative means the normal orange flame. */
+  hue: number;
+}
+
+// ---- Breath (evolved claw: frontal spray of flame particles) ----
 export interface BreathState {
   range: number;
-  coneAngle: number; // half-angle of the cone (radians)
+  coneAngle: number; // half-angle of the spray (radians)
   damage: number;
   cooldown: number;
   cooldownTimer: number;
-  breathTimer: number; // 0..breathDuration, counts up while breathing
+  breathTimer: number; // 0..breathDuration, counts up while emitting
   breathDuration: number;
   breathActive: boolean;
-  facing: number; // current cone direction
-  tickInterval: number; // damage tick cadence while breathing
+  /** Super evolution: the spray never stops. */
+  continuous: boolean;
+  facing: number; // current spray direction
+  tickInterval: number; // how often one enemy can be hurt by particles
   tickTimer: number;
+  spawnTimer: number;
+  particles: BreathParticle[];
   hitTimers: Map<number, number>; // per-enemy tick cooldown during a breath
-  // Burn DoT left on enemies after breath ends
+  // Burn DoT left on enemies the particles hit
   enemyBurns: Map<number, { timer: number; tickTimer: number; damage: number }>;
   cachedLevel: number;
 }
 
 // ---- Gems ----
+/** Ground pickup dropped rarely on a kill. Effect happens when the player walks over it. */
+export type SpecialPickup = "magnet" | "heart" | "bomb";
+
 export interface Gem {
   id: number;
   x: number;
@@ -222,6 +247,10 @@ export interface Gem {
   value: number;
   alive: boolean;
   isTreasure?: boolean;
+  /** Magnet, heart, or bomb. Never merged into an XP gem. */
+  pickup?: SpecialPickup;
+  /** Magnet pickup: this XP gem flies to the player from anywhere on the map. */
+  attracted?: boolean;
 }
 
 // ---- Upgrades ----
@@ -273,6 +302,10 @@ export interface GameStats {
   weapons: { type: WeaponType; name: string; level: number; evolved: boolean }[];
   accessories: { type: AccessoryType; name: string; level: number }[];
   rerolls: number;
+  /** Soonest elite kill timer, or null when no elite is alive. */
+  eliteSeconds: number | null;
+  /** The run ended because an elite outlasted its timer. */
+  failedElite: boolean;
 }
 
 export interface Camera {

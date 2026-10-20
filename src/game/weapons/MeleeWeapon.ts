@@ -25,7 +25,7 @@ export function createMeleeBlades(w: WeaponInstance): MeleeBlade[] {
   return blades;
 }
 
-// Blade count: 1 base, +1 every 2 levels (max 4 at Lv7, +1 at Lv8 = 5).
+// Blade count: 2 base, +1 every 2 levels (5 at Lv7, +1 at Lv8 = 6).
 // Evolved (Storm Blade) has 8 blades, as its description promises.
 export const MELEE_EVOLVED_BLADES = 8;
 // Evolved blades push enemies away from the player on hit (px).

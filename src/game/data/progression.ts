@@ -223,7 +223,7 @@ export const GACHA_COST = 300;
 
 // ---- Breakthrough (돌파) ----
 // Memories required to reach each breakthrough tier (0→1, 1→2, 2→3, 3→4)
-export const BREAKTHROUGH_MEMORY_COSTS: number[] = [3, 6, 10, 15];
+export const BREAKTHROUGH_MEMORY_COSTS: number[] = [1, 3, 7, 10];
 export const MAX_BREAKTHROUGH = 4;
 
 // Breakthrough tier effects per character (applied in traitHelper)

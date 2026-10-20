@@ -2,7 +2,7 @@
 //  EnemyManager.ts — Spawning, tracking, collision, death
 // ============================================================
 
-import { CONFIG } from "@/game/data/config";
+import { CONFIG, eliteHp, enemyCap, enemyHpScale, regularSpawnInterval } from "@/game/data/config";
 import { playHitSound } from "@/game/core/audio";
 import type { EnemyState, PlayerState } from "@/game/core/types";
 import { isLowQuality } from "@/game/render/quality";
@@ -35,10 +35,7 @@ const WOLF_COLS = 4;
 const WOLF_ROWS = 14;
 const WOLF_ROW_WALK_RIGHT = 4;
 const WOLF_ROW_WALK_LEFT  = 5;
-const WOLF_ROW_DIE_RIGHT  = 12;
-const WOLF_ROW_DIE_LEFT   = 13;
 const WOLF_FRAME_DURATION = 0.14; // seconds per frame
-const WOLF_DIE_DURATION   = WOLF_COLS * WOLF_FRAME_DURATION; // full die anim
 
 // Lazy-loaded sprite image
 let wolfImage: HTMLImageElement | null = null;
@@ -54,13 +51,24 @@ function getWolfImage(): HTMLImageElement | null {
 
 let idCounter = 1000;
 let spawnTimer = 0;
-let currentSpawnInterval: number = CONFIG.enemy.spawnInterval;
 let eliteTimer = 0;
 let eliteSpawned = 0;
 
+/** Set from the active run's constraints. Defaults leave spawning unchanged. */
+let enemyRun = { hp: 1, damage: 1, speed: 1, hpGrowth: 1, spawn: 1 };
+
+export function setEnemyConstraints(mods: {
+  hp: number;
+  damage: number;
+  speed: number;
+  hpGrowth: number;
+  spawn: number;
+}): void {
+  enemyRun = mods;
+}
+
 export function resetEnemyManager(): void {
   spawnTimer = 0;
-  currentSpawnInterval = CONFIG.enemy.spawnInterval;
   idCounter = 1000;
   eliteTimer = 0;
   eliteSpawned = 0;
@@ -74,17 +82,18 @@ function createEliteEnemy(elapsedTime: number, px: number, py: number): EnemySta
   const pos = spawnEdgePosition(px, py);
   const t = pickType(elapsedTime);
   const ec = CONFIG.elite;
+  const hp = eliteHp(elapsedTime, enemyRun.hpGrowth) * enemyRun.hp;
   return {
     id: ++idCounter,
     x: pos.x,
     y: pos.y,
     radius: t.radius * ec.radiusMult,
-    hp: t.hp * ec.hpMult,
-    maxHp: t.hp * ec.hpMult,
+    hp,
+    maxHp: hp,
     alive: true,
-    speed: t.speed * ec.speedMult,
-    baseSpeed: t.speed * ec.speedMult,
-    damage: t.damage * ec.damageMult,
+    speed: t.speed * ec.speedMult * enemyRun.speed,
+    baseSpeed: t.speed * ec.speedMult * enemyRun.speed,
+    damage: t.damage * ec.damageMult * enemyRun.damage,
     contactTimer: 0,
     enemyType: t.id,
     color: ec.color,
@@ -97,6 +106,7 @@ function createEliteEnemy(elapsedTime: number, px: number, py: number): EnemySta
     dyingTimer: 0,
     isElite: true,
     gemDropped: false,
+    eliteLife: CONFIG.elite.killSeconds,
     facing: 0,
   };
 }
@@ -132,17 +142,19 @@ function pickType(elapsedTime: number): EnemyTypeConfig {
 function createEnemy(elapsedTime: number, px: number, py: number): EnemyState {
   const pos = spawnEdgePosition(px, py);
   const t = pickType(elapsedTime);
+  const variance = 0.8 + Math.random() * 0.4;
+  const hp = t.hp * enemyHpScale(elapsedTime, enemyRun.hpGrowth) * enemyRun.hp;
   return {
     id: ++idCounter,
     x: pos.x,
     y: pos.y,
     radius: t.radius,
-    hp: t.hp,
-    maxHp: t.hp,
+    hp,
+    maxHp: hp,
     alive: true,
-    speed: t.speed * (0.8 + Math.random() * 0.4),
-    baseSpeed: t.speed * (0.8 + Math.random() * 0.4),
-    damage: t.damage,
+    speed: t.speed * variance * enemyRun.speed,
+    baseSpeed: t.speed * variance * enemyRun.speed,
+    damage: t.damage * enemyRun.damage,
     contactTimer: 0,
     enemyType: t.id,
     color: t.color,
@@ -164,15 +176,13 @@ export function updateEnemies(
   player: PlayerState,
   dt: number
 ): void {
-  if (enemies.length < CONFIG.enemy.maxCount) {
+  if (enemies.length < enemyCap(_elapsedTime)) {
     spawnTimer += dt;
-    if (spawnTimer >= currentSpawnInterval) {
-      spawnTimer = 0;
+    const interval = regularSpawnInterval(_elapsedTime) * enemyRun.spawn;
+    // Catch up when the interval is shorter than a frame. Stop if it is not a positive number.
+    while (interval > 0 && spawnTimer >= interval && enemies.length < enemyCap(_elapsedTime)) {
+      spawnTimer -= interval;
       enemies.push(createEnemy(_elapsedTime, player.x, player.y));
-      currentSpawnInterval = Math.max(
-        CONFIG.enemy.spawnMinInterval,
-        currentSpawnInterval * CONFIG.enemy.spawnIntervalDecay
-      );
     }
   }
 
@@ -195,29 +205,8 @@ export function updateEnemies(
     const dist = Math.sqrt(dx * dx + dy * dy);
     e.facing = facingFromVector(dx, dy, e.facing);
 
-    // Sprite animation updates
+    // Sprite animation updates. Wolves die instantly, same as the other enemies.
     if (e.shape === "sprite") {
-      if (e.dying) {
-        // Advance death animation; mark dead when done
-        e.dyingTimer += dt;
-        e.spriteTimer += dt;
-        if (e.spriteTimer >= WOLF_FRAME_DURATION) {
-          e.spriteTimer -= WOLF_FRAME_DURATION;
-          const nextFrame = e.spriteFrame + 1;
-          if (nextFrame >= WOLF_COLS || e.dyingTimer >= WOLF_DIE_DURATION) {
-            e.spriteFrame = WOLF_COLS - 1; // hold last frame briefly
-          } else {
-            e.spriteFrame = nextFrame;
-          }
-        }
-        // Actually remove once full die anim done
-        if (e.dyingTimer >= WOLF_DIE_DURATION) {
-          e.alive = false;
-          e.dying = false;
-        }
-        continue; // no movement during death
-      }
-
       // Walk animation
       e.spriteTimer += dt;
       if (e.spriteTimer >= WOLF_FRAME_DURATION) {
@@ -288,16 +277,6 @@ export function damageEnemy(enemy: EnemyState, dmg: number, critChance: number =
   playHitSound();
   enemy.hp -= finalDmg;
   if (enemy.hp <= 0) {
-    if (enemy.shape === "sprite") {
-      // Trigger death animation; actual removal happens in updateEnemies
-      enemy.hp = 0;
-      enemy.dying = true;
-      enemy.dyingTimer = 0;
-      enemy.spriteFrame = 0;
-      enemy.spriteTimer = 0;
-      // Return true so the kill is counted immediately
-      return true;
-    }
     enemy.alive = false;
     return true;
   }
@@ -396,12 +375,7 @@ function renderWolfSprite(
   const fw = img.width / WOLF_COLS;
   const fh = img.height / WOLF_ROWS;
 
-  let row: number;
-  if (e.dying) {
-    row = e.facingRight ? WOLF_ROW_DIE_RIGHT : WOLF_ROW_DIE_LEFT;
-  } else {
-    row = e.facingRight ? WOLF_ROW_WALK_RIGHT : WOLF_ROW_WALK_LEFT;
-  }
+  const row = e.facingRight ? WOLF_ROW_WALK_RIGHT : WOLF_ROW_WALK_LEFT;
 
   const col = e.spriteFrame;
   const sx = col * fw;
@@ -554,6 +528,28 @@ export function cullDead(enemies: EnemyState[]): EnemyState[] {
   return enemies;
 }
 
+/** Lowest remaining elite timer, or null if none are alive. */
+export function eliteSecondsLeft(enemies: EnemyState[]): number | null {
+  let best: number | null = null;
+  for (const e of enemies) {
+    if (!e.isElite || !e.alive || e.dying) continue;
+    const t = e.eliteLife ?? CONFIG.elite.killSeconds;
+    if (best === null || t < best) best = t;
+  }
+  return best;
+}
+
+/** Counts down elite kill timers. True when one ran out while the elite was still alive. */
+export function tickEliteLife(enemies: EnemyState[], dt: number): boolean {
+  let expired = false;
+  for (const e of enemies) {
+    if (!e.isElite || !e.alive || e.dying) continue;
+    e.eliteLife = (e.eliteLife ?? CONFIG.elite.killSeconds) - dt;
+    if (e.eliteLife <= 0) expired = true;
+  }
+  return expired;
+}
+
 /** Removes enemies that have wandered too far from the player (off-screen cleanup), in-place. */
 export function cullFarEnemies(enemies: EnemyState[], px: number, py: number): EnemyState[] {
   const maxDist2 = (CONFIG.canvasWidth * 1.5) * (CONFIG.canvasWidth * 1.5);
@@ -561,6 +557,12 @@ export function cullFarEnemies(enemies: EnemyState[], px: number, py: number): E
   for (let i = 0; i < enemies.length; i++) {
     const e = enemies[i];
     if (!e.alive && !e.dying) continue;
+    // A living elite has to be killed. Running away does not clear the timer.
+    if (e.isElite && e.alive) {
+      if (write !== i) enemies[write] = e;
+      write++;
+      continue;
+    }
     const dx = e.x - px;
     const dy = e.y - py;
     if (dx * dx + dy * dy < maxDist2) {

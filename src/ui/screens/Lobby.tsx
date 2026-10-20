@@ -1,16 +1,15 @@
-import { useState } from "react";
-import { Settings, X } from "lucide-react";
+import { Scale, Settings } from "lucide-react";
 import { GAME_INFO } from "@/gameInfo";
 import type { SaveData } from "@/game/core/storage";
 import { CHARACTERS } from "@/game/data/progression";
 import { weaponName } from "@/game/systems/WeaponManager";
 import { PixelFace, PixelWalker } from "@/ui/components/PixelSprite";
 import { GameIcon } from "@/ui/components/GameIcon";
-import { SettingsPanel } from "@/ui/components/SettingsPanel";
+import { constraintGoldMultiplier, constraintScore } from "@/game/data/constraints";
 import { UI_ICONS, weaponIcon } from "@/ui/icons";
 import { readableAccent, weaponColor } from "@/ui/theme";
 
-export type Screen = "lobby" | "game" | "gacha" | "codex" | "achievements" | "characters" | "traits";
+export type Screen = "lobby" | "game" | "gacha" | "codex" | "achievements" | "characters" | "traits" | "constraints" | "settings";
 
 interface LobbyProps {
   onNavigate: (screen: Screen) => void;
@@ -20,7 +19,8 @@ interface LobbyProps {
 interface MenuCard {
   title: string;
   desc: string;
-  icon: string;
+  icon?: string;
+  lucide?: "constraints" | "settings";
   iconColor: string;
   color: string;
   hoverColor: string;
@@ -38,6 +38,16 @@ const MENU_ITEMS: MenuCard[] = [
     hoverColor: "hover:border-cyan-400 hover:bg-cyan-900/40",
     glow: "group-hover:shadow-cyan-500/20",
     screen: "game",
+  },
+  {
+    title: "제약",
+    desc: "난이도를 올리고 완료 보상을 늘리세요",
+    lucide: "constraints",
+    iconColor: "#fdba74",
+    color: "border-orange-500/40 bg-orange-950/30",
+    hoverColor: "hover:border-orange-400 hover:bg-orange-900/40",
+    glow: "group-hover:shadow-orange-500/20",
+    screen: "constraints",
   },
   {
     title: "캐릭터 뽑기",
@@ -89,14 +99,25 @@ const MENU_ITEMS: MenuCard[] = [
     glow: "group-hover:shadow-rose-500/20",
     screen: "achievements",
   },
+  {
+    title: "설정",
+    desc: "그래픽과 효과음을 조절하세요",
+    lucide: "settings",
+    iconColor: "#cbd5e1",
+    color: "border-slate-500/40 bg-slate-900/40",
+    hoverColor: "hover:border-slate-400 hover:bg-slate-800/60",
+    glow: "group-hover:shadow-slate-500/20",
+    screen: "settings",
+  },
 ];
 
 /** Icon artists to credit (CC BY 3.0 requires attribution) — see src/assets/icons/credits.json */
 const ICON_AUTHORS = "Lorc, Delapouite, Skoll, Sbed, DarkZaitzev, Willdabeast";
 
 export function Lobby({ onNavigate, save }: LobbyProps) {
-  const [showSettings, setShowSettings] = useState(false);
   const charDef = CHARACTERS.find((c) => c.id === save.selectedCharacter) ?? CHARACTERS[0];
+  const runScore = constraintScore(save.constraintLevels);
+  const runGold = constraintGoldMultiplier(runScore);
   const owned = save.owned.find((o) => o.id === charDef.id);
 
   return (
@@ -114,7 +135,7 @@ export function Lobby({ onNavigate, save }: LobbyProps) {
           <span className="text-xs text-slate-500">별</span>
         </span>
         <button
-          onClick={() => setShowSettings(true)}
+          onClick={() => onNavigate("settings")}
           className="rounded-lg border border-slate-800 bg-slate-900/70 p-2 text-slate-400 transition-colors hover:border-slate-600 hover:text-slate-100"
           aria-label="설정"
         >
@@ -171,7 +192,12 @@ export function Lobby({ onNavigate, save }: LobbyProps) {
 
       {/* Menu grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-3xl">
-        {MENU_ITEMS.map((item) => (
+        {MENU_ITEMS.map((item) => {
+          const desc =
+            item.screen === "constraints" && runScore > 0
+              ? `점수 ${runScore} · 골드 ×${runGold.toFixed(2)}`
+              : item.desc;
+          return (
           <button
             key={item.screen}
             onClick={() => onNavigate(item.screen)}
@@ -182,18 +208,25 @@ export function Lobby({ onNavigate, save }: LobbyProps) {
           >
             <div className="flex-shrink-0 w-14 h-14 rounded-xl bg-slate-900/60 flex items-center justify-center
                             transition-transform duration-300 group-hover:scale-110">
-              <GameIcon name={item.icon} size={32} color={item.iconColor} />
+              {item.lucide === "constraints" ? (
+                <Scale className="h-8 w-8" style={{ color: item.iconColor }} />
+              ) : item.lucide === "settings" ? (
+                <Settings className="h-8 w-8" style={{ color: item.iconColor }} />
+              ) : (
+                <GameIcon name={item.icon ?? UI_ICONS.play} size={32} color={item.iconColor} />
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <h2 className="text-lg font-bold text-slate-100 mb-0.5">
                 {item.title}
               </h2>
               <p className="text-slate-400 text-sm leading-snug">
-                {item.desc}
+                {desc}
               </p>
             </div>
           </button>
-        ))}
+          );
+        })}
       </div>
 
       {/* Footer */}
@@ -201,33 +234,9 @@ export function Lobby({ onNavigate, save }: LobbyProps) {
         WASD / 방향키 — 이동 · 공격은 자동 · ESC — 일시정지
       </p>
       <p className="mt-2 text-[11px] text-slate-700">
-        v{GAME_INFO.version} · Icons by {ICON_AUTHORS} (game-icons.net, CC BY 3.0) · Pixel art: Ninja Adventure by Pixel-boy &amp; AAA (CC0)
+        v{GAME_INFO.version} · Icons by {ICON_AUTHORS} (game-icons.net, CC BY 3.0) · Pixel art: Ninja Adventure by Pixel-boy &amp; AAA (CC0) · 리냐·에우로안: Universal LPC (CC BY-SA 3.0)
       </p>
 
-      {/* Settings modal */}
-      {showSettings && (
-        <div
-          className="fixed inset-0 z-30 flex items-center justify-center bg-black/70 px-6"
-          onClick={() => setShowSettings(false)}
-        >
-          <div
-            className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-slate-100">설정</h2>
-              <button
-                onClick={() => setShowSettings(false)}
-                className="rounded-md p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-100"
-                aria-label="닫기"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <SettingsPanel />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

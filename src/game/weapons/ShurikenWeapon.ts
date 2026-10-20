@@ -38,6 +38,7 @@ export function shurikenPierce(w: WeaponInstance): number {
 }
 
 export function shurikenCount(w: WeaponInstance): number {
+  if (w.super) return 20;
   if (w.evolved) return 8;
   if (w.level >= 8) return 5;
   if (w.level >= 6) return 4;
@@ -91,10 +92,12 @@ export function updateShuriken(
       const radius = shurikenRadius(w);
       const pierce = shurikenPierce(w);
 
-      const spread = count > 1 ? 0.22 : 0;
+      // Normal evolution is a fan. Super evolution (Linya) fills the whole circle.
+      const fullRing = w.super;
+      const spread = !fullRing && count > 1 ? 0.22 : 0;
       for (let i = 0; i < count; i++) {
-        const offset = count > 1 ? (i - (count - 1) / 2) * spread : 0;
-        const angle = baseAngle + offset;
+        const offset = !fullRing && count > 1 ? (i - (count - 1) / 2) * spread : 0;
+        const angle = fullRing ? baseAngle + (i / count) * Math.PI * 2 : baseAngle + offset;
         projectiles.push({
           id: ++idCounter,
           x: px, y: py,
@@ -125,7 +128,7 @@ export function updateShuriken(
     const vxdt = p.vx * dt;
     const vydt = p.vy * dt;
 
-    // Boomerang: evolved shurikens return after traveling ~300px
+    // Boomerang: after ~300px, arc back toward the player (not the throw point).
     if (w.evolved) {
       p.traveled += Math.sqrt(vxdt * vxdt + vydt * vydt);
       if (!p.returning && p.traveled > 300) {
@@ -133,14 +136,21 @@ export function updateShuriken(
         p.hitIds.clear(); // can hit again on return
       }
       if (p.returning) {
-        const dx = p.originX - p.x;
-        const dy = p.originY - p.y;
+        const dx = px - p.x;
+        const dy = py - p.y;
         const dist2 = dx * dx + dy * dy;
-        if (dist2 < 900) { p.alive = false; continue; } // 30^2
-        const dist = Math.sqrt(dist2);
-        const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
-        p.vx = (dx / dist) * speed;
-        p.vy = (dy / dist) * speed;
+        if (dist2 < 36 * 36) { p.alive = false; continue; }
+        const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy) || shurikenSpeed(w);
+        const desired = Math.atan2(dy, dx);
+        const current = Math.atan2(p.vy, p.vx);
+        let delta = desired - current;
+        if (delta > Math.PI) delta -= Math.PI * 2;
+        else if (delta < -Math.PI) delta += Math.PI * 2;
+        const maxTurn = 7 * dt;
+        const turn = delta > maxTurn ? maxTurn : delta < -maxTurn ? -maxTurn : delta;
+        const angle = current + turn;
+        p.vx = Math.cos(angle) * speed;
+        p.vy = Math.sin(angle) * speed;
       }
     } else {
       const pdx = p.x - px;
@@ -180,21 +190,16 @@ export function cullShurikens(projectiles: ShurikenProjectile[]): ShurikenProjec
 
 export function renderShurikens(ctx: CanvasRenderingContext2D, projectiles: ShurikenProjectile[]): void {
   const pixel = !isLowQuality();
-  const frame = Math.floor(performance.now() / 70);
   for (const p of projectiles) {
     if (!p.alive) continue;
-    // High quality: kunai flying along its path; the evolved returning blade is a spinning magic shuriken
+    // Same kunai/dagger on the way out and on the way back. Point it along its velocity.
+    const facing = Math.atan2(p.vy, p.vx);
     if (pixel) {
-      const ok = p.returning
-        ? drawStrip(ctx, "proj/shuriken-magic", frame, p.x, p.y, 2, p.rotation)
-        : drawStrip(ctx, "proj/kunai", 0, p.x, p.y, 2, Math.atan2(p.vy, p.vx));
+      const ok = drawStrip(ctx, "proj/kunai", 0, p.x, p.y, 2, facing);
       if (ok) continue;
     }
-    // Sprite: spinning flying dagger (evolved/returning: gold shuriken star)
     const size = p.radius * 3;
-    const sprite = p.returning
-      ? getIconSprite("weapon-shuriken-evo", "#fbbf24", size)
-      : getIconSprite("proj-dagger", p.color, size);
+    const sprite = getIconSprite("proj-dagger", p.color, size);
     if (sprite) {
       drawSpriteRotated(ctx, sprite, p.x, p.y, p.rotation, size + 4);
       continue;
@@ -204,7 +209,7 @@ export function renderShurikens(ctx: CanvasRenderingContext2D, projectiles: Shur
     ctx.translate(p.x, p.y);
     ctx.rotate(p.rotation);
     ctx.fillStyle = p.color;
-    ctx.strokeStyle = p.returning ? "#fbbf24" : p.color + "88";
+    ctx.strokeStyle = p.color + "88";
     ctx.lineWidth = 2;
     const s = p.radius;
     ctx.beginPath();

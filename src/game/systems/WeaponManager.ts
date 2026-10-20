@@ -13,7 +13,7 @@ import type {
   WeaponMods,
   WeaponType,
 } from "@/game/core/types";
-import { EVOLUTIONS } from "@/game/data/evolutions";
+import { EVOLUTIONS, SUPER_EVOLUTIONS, superEvolutionFor } from "@/game/data/evolutions";
 import { ALL_WEAPON_TYPES, WEAPON_MODULES } from "@/game/weapons/registry";
 
 export type { WeaponMods } from "@/game/core/types";
@@ -28,6 +28,15 @@ export function weaponName(type: WeaponType): string {
 
 export function weaponEvolvedName(type: WeaponType): string {
   return EVOLUTIONS[type].evolvedName;
+}
+
+/** Name shown in the HUD and results, including super evolution. */
+export function weaponFormName(w: Pick<WeaponInstance, "type" | "evolved" | "super">): string {
+  if (w.super) {
+    const s = SUPER_EVOLUTIONS.find((e) => e.weapon === w.type);
+    if (s) return s.name;
+  }
+  return w.evolved ? EVOLUTIONS[w.type].evolvedName : CONFIG.weapons[w.type].name;
 }
 
 export function weaponDesc(type: WeaponType): string {
@@ -72,7 +81,7 @@ export class WeaponManager {
 
   addWeapon(type: WeaponType): void {
     if (this.hasWeapon(type)) return;
-    const w: WeaponInstance = { type, level: 1, cooldownTimer: 0, burstShotsLeft: 0, burstTimer: 0, evolved: false };
+    const w: WeaponInstance = { type, level: 1, cooldownTimer: 0, burstShotsLeft: 0, burstTimer: 0, evolved: false, super: false };
     this.weapons.push(w);
     this.states.set(type, WEAPON_MODULES[type].createState(w));
     this.renderList = [...this.weapons].sort(
@@ -86,10 +95,11 @@ export class WeaponManager {
    * which is what the codex shows (original design, see wiki/overview/original-intent-audit.md).
    * Evolved weapons never level up again (levelUpWeapon/getUpgradeableWeapons skip them).
    */
-  evolveWeapon(type: WeaponType): void {
+  evolveWeapon(type: WeaponType, characterId?: string): void {
     const w = this.weapons.find((w) => w.type === type);
     if (!w || w.evolved) return;
     w.evolved = true;
+    w.super = superEvolutionFor(characterId, type) !== null;
     w.level = weaponMaxLevel(type);
     w.cooldownTimer = 0;
     w.burstShotsLeft = 0;
@@ -157,6 +167,7 @@ export class WeaponManager {
         dt,
         onKill,
         mods: this.mods,
+        aim: player.aim,
       });
     }
   }

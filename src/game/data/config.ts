@@ -30,8 +30,10 @@ export const CONFIG = {
 
   // ---- Leveling / XP ----
   leveling: {
-    baseXpToNext: 5,   // XP needed for first level
-    xpGrowth: 1.35,    // multiplier per level
+    baseXpToNext: 5,      // XP needed for level 1 → 2
+    xpGrowth: 1.6,        // per level, through level 10
+    xpGrowthLate: 1.4,    // per level from level 11 on
+    xpGrowthLateFrom: 11,
     maxLevel: 50,
   },
 
@@ -42,11 +44,15 @@ export const CONFIG = {
     hp: 10,
     speed: 55,
     damage: 8,
-    spawnInterval: 0.8, // seconds between spawns
-    spawnMinInterval: 0.25,
-    spawnIntervalDecay: 0.97, // multiply interval every spawn
-    maxCount: 120,
+    spawnInterval: 0.8, // seconds at 0:00
+    spawnDecayPerSecond: 0.98, // first minute: interval × this, every second
+    spawnDecayEarlySeconds: 60,
+    spawnDecayPerMinute: 0.75, // after that: interval × this, every minute. No floor.
+    maxCount: 120, // at 0:00. Grows by maxCountGrowthPerMinute (100%p) each minute.
+    maxCountGrowthPerMinute: 1,
     contactDamageCooldown: 0.5,
+    // Regular spawn HP = base × hpPerMinute ^ (elapsed minutes). Elites use elite.hp instead.
+    hpPerMinute: 1.5,
   },
 
   // ---- Enemy types ----
@@ -148,7 +154,9 @@ export const CONFIG = {
   // ---- Elite enemies (spawn every 60s) ----
   elite: {
     spawnInterval: 60, // seconds between elite spawns
-    hpMult: 8,         // HP multiplier vs base enemy
+    killSeconds: 30, // game over if this elite is still alive
+    hp: 500,           // same for every elite, regardless of the borrowed type
+    hpPerMinute: 2,    // spawn HP = hp × hpPerMinute ^ (elapsed minutes)
     damageMult: 1.5,
     speedMult: 0.9,
     radiusMult: 1.8,
@@ -159,8 +167,15 @@ export const CONFIG = {
   // ---- Gems ----
   gem: {
     radius: 7,
-    color: "#3b82f6",
+    color: "#7dd3fc", // bright sky; merged gems step toward deep blue in GemManager
     magnetSpeed: 280, // px/s when being pulled
+  },
+
+  // Rare kill drop. One roll per kill; the three pickups are equally likely.
+  special: {
+    dropChance: 1 / 300,
+    radius: 13,
+    pullSpeed: 720, // px/s, magnet pickup yanks every XP gem on the map
   },
 
   // ---- Max weapons a player can hold ----
@@ -240,8 +255,8 @@ export const CONFIG = {
       name: "자연의 축복",
       desc: "초당 체력 재생량 증가",
       icon: "leaf",
-      baseRegenPerSec: 1.5,
-      growthRegen: 0.8,
+      baseRegenPerSec: 0.5,
+      growthRegen: 0.8 / 3,
       maxLevel: 5,
     },
   } as Record<string, AccessoryDef>,
@@ -275,7 +290,7 @@ export const CONFIG = {
       baseCooldown: 0,    // continuous, not timer-based
       baseBladeRadius: 55, // swing orbit radius
       baseBladeSize: 16,
-      baseBladeCount: 1,
+      baseBladeCount: 2,
       hitCooldown: 0.4,   // per-enemy re-hit delay
       damageGrowth: 1.25,
       bladeCountGrowth: 1, // +1 blade every 2 levels
@@ -315,7 +330,7 @@ export const CONFIG = {
       name: "화염 오오라",
       desc: "플레이어 주변의 적에게 지속 데미지",
       color: "#f87171",
-      baseDamage: 5,
+      baseDamage: 2.5,
       baseCooldown: 0,     // continuous tick
       baseAuraRadius: 70,
       tickInterval: 0.5,
@@ -381,7 +396,49 @@ interface AccessoryDef {
   growthDamageReduction?: number;
 }
 
-// Derived helper: XP required to go from `level` to `level+1`
+// Derived helper: XP required to go from `level` to `level+1`.
+// 1.6× through level 10, then 1.4×. The first step stays baseXpToNext.
 export function xpForLevel(level: number): number {
-  return Math.floor(CONFIG.leveling.baseXpToNext * Math.pow(CONFIG.leveling.xpGrowth, level - 1));
+  const { baseXpToNext, xpGrowth, xpGrowthLate, xpGrowthLateFrom } = CONFIG.leveling;
+  const early = xpGrowthLateFrom - 1;
+  if (level <= early) {
+    return Math.floor(baseXpToNext * Math.pow(xpGrowth, level - 1));
+  }
+  return Math.floor(
+    baseXpToNext * Math.pow(xpGrowth, early - 1) * Math.pow(xpGrowthLate, level - early),
+  );
+}
+
+/** HP multiplier for a regular enemy spawned at `elapsedSeconds`. 1 at 0:00, 1.5 at 1:00, 2.25 at 2:00. */
+export function enemyHpScale(elapsedSeconds: number, growthMult = 1): number {
+  return Math.pow(CONFIG.enemy.hpPerMinute * growthMult, elapsedSeconds / 60);
+}
+
+/** Elite HP at spawn. 500 at 0:00, 1000 at 1:00, 2000 at 2:00. Does not use the type's HP. */
+export function eliteHp(elapsedSeconds: number, growthMult = 1): number {
+  return CONFIG.elite.hp * Math.pow(CONFIG.elite.hpPerMinute * growthMult, elapsedSeconds / 60);
+}
+
+/**
+ * Seconds between regular spawns. Starts at spawnInterval.
+ * The first minute multiplies by spawnDecayPerSecond each second.
+ * After that, multiplies by spawnDecayPerMinute each minute. No minimum.
+ */
+export function regularSpawnInterval(elapsedSeconds: number): number {
+  const { spawnInterval, spawnDecayPerSecond, spawnDecayEarlySeconds, spawnDecayPerMinute } = CONFIG.enemy;
+  const early = Math.min(Math.max(0, elapsedSeconds), spawnDecayEarlySeconds);
+  const lateMinutes = Math.max(0, elapsedSeconds - spawnDecayEarlySeconds) / 60;
+  return (
+    spawnInterval *
+    Math.pow(spawnDecayPerSecond, early) *
+    Math.pow(spawnDecayPerMinute, lateMinutes)
+  );
+}
+
+/** Regular-enemy cap. 100% of maxCount at the start, plus 100 percentage points per minute. */
+export function enemyCap(elapsedSeconds: number, countMult = 1): number {
+  const minutes = elapsedSeconds / 60;
+  return Math.floor(
+    CONFIG.enemy.maxCount * (1 + CONFIG.enemy.maxCountGrowthPerMinute * minutes) * countMult,
+  );
 }

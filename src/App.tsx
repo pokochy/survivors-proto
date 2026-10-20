@@ -6,6 +6,8 @@ import { CodexScreen } from "@/ui/screens/CodexScreen";
 import { AchievementsScreen } from "@/ui/screens/AchievementsScreen";
 import { CharacterScreen } from "@/ui/screens/CharacterScreen";
 import { TraitsScreen } from "@/ui/screens/TraitsScreen";
+import { ConstraintScreen } from "@/ui/screens/ConstraintScreen";
+import { SettingsScreen } from "@/ui/screens/SettingsScreen";
 import { loadSave, saveSave, type SaveData } from "@/game/core/storage";
 
 function App() {
@@ -35,6 +37,10 @@ function App() {
       {screen === "traits" && (
         <TraitsScreen onBack={goLobby} save={save} onUpdate={handleSaveUpdate} />
       )}
+      {screen === "constraints" && (
+        <ConstraintScreen onBack={goLobby} save={save} onUpdate={handleSaveUpdate} />
+      )}
+      {screen === "settings" && <SettingsScreen onBack={goLobby} />}
       {screen === "codex" && <CodexScreen onBack={goLobby} />}
       {screen === "achievements" && (
         <AchievementsScreen onBack={goLobby} save={save} />

@@ -135,6 +135,7 @@ src/
 ### 새 캐릭터
 `progression.ts` `CHARACTERS` (패시브는 `PassiveType` + `GameEngine.updateWeaponMods`/`applyAccessoryMods`) → 엠블럼 `char-<id>.svg`(저사양)
 → 픽셀 걷기 시트·초상 (`scripts/sync-pixel-assets.mjs` 캐릭터 목록에 `[id, Ninja Adventure 폴더명]`, `npm run assets:pixel`).
+팩에 없으면 [Universal LPC Spritesheet Character Generator](https://github.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator) 에서도 찾는다. 레이어 라이선스는 그 저장소 `CREDITS.csv` 를 보고, 쓴 레이어만 크레딧한다.
 특수 캐릭터는 `special: true` + `unlockAchievement`.
 
 ### 새 아이콘·에셋

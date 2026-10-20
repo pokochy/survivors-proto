@@ -22,6 +22,12 @@ export interface GameModifiers {
   startAccessory: AccessoryType | null; // 4돌파: paired accessory at game start
 }
 
+/** 1돌파가 체력·공격력·이동속도에 곱하는 배율. 이후 돌파는 이 셋을 더 올리지 않는다. */
+export function breakthroughCombatMult(breakthrough: number): { hp: number; damage: number; speed: number } {
+  if (breakthrough >= 1) return { hp: 1.1, damage: 1.05, speed: 1.05 };
+  return { hp: 1, damage: 1, speed: 1 };
+}
+
 export function computeModifiers(save: SaveData): GameModifiers {
   // Character base
   const charDef = CHARACTERS.find((c) => c.id === save.selectedCharacter);
@@ -71,10 +77,10 @@ export function computeModifiers(save: SaveData): GameModifiers {
   let startAccessory: AccessoryType | null = null;
 
   if (breakthrough >= 1) {
-    // 1돌파: stat boost (+10% hp, +5% damage, +5% speed)
-    hpMult *= 1.10;
-    damageMult *= 1.05;
-    speedMult *= 1.05;
+    const bt = breakthroughCombatMult(breakthrough);
+    hpMult *= bt.hp;
+    damageMult *= bt.damage;
+    speedMult *= bt.speed;
   }
   if (breakthrough >= 2) {
     // 2돌파: xp gain +30%, pickup range +30%

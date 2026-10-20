@@ -45,6 +45,7 @@ export function createPlayer(mods?: {
     emblem: mods?.emblem,
     sprite: mods?.sprite,
     facing: 0,
+    aim: Math.PI / 2,
     walkTime: 0,
     moving: false,
   };
@@ -76,6 +77,7 @@ export function updatePlayer(
   player.moving = len > 0;
   if (player.moving) {
     player.facing = facingFromVector(dx, dy, player.facing);
+    player.aim = Math.atan2(dy, dx);
     player.walkTime += dt;
   }
 

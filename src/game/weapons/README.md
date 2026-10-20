@@ -8,9 +8,9 @@
 | `MeleeWeapon.ts` | 근접 회전검 — 주변 궤도 칼날 | 폭풍의 칼날 |
 | `BombWeapon.ts` | 폭발탄 — 투하 후 범위 폭발 + 잔류 화염 | 운석 폭격 |
 | `TrapWeapon.ts` | 설치형 트랩 — 지속 피해 + 감속 | 영혼의 토템 |
-| `AuraWeapon.ts` | 화염 오오라 — 주변 틱 피해 + 화상 + 넉백 | 심판의 화염 |
-| `ShurikenWeapon.ts` | 비도 — 관통 투척, 진화 시 부메랑 | 환영 비도 |
-| `ClawWeapon.ts` | 야생의 발톱 — 전방 부채꼴 베기 | 브레스 (`BreathWeapon.ts`) |
+| `AuraWeapon.ts` | 화염 오오라 — 주변 틱 피해 + 화상 | 심판의 화염 |
+| `ShurikenWeapon.ts` | 비도 — 관통 투척, 진화 시 부메랑 | 환영 비도. 리냐만 비도 난무(전방위 20) |
+| `ClawWeapon.ts` | 야생의 발톱 — 전방 부채꼴 베기 | 브레스 (`BreathWeapon.ts`). 에우로안만 레인보우 브레스 |
 | `registry.ts` | `WEAPON_MODULES` 등록표 · `ALL_WEAPON_TYPES` · `weaponLevelEffectAt()` | |
 
 ## 무기 모듈 인터페이스 (`WeaponModule<S>`)

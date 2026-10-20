@@ -54,7 +54,15 @@ function renderPixelBomb(ctx: CanvasRenderingContext2D, b: BombEntity, now: numb
 }
 
 let idCounter = 5200;
-export function resetBombIds() { idCounter = 5200; }
+/** Residual flame is 15% of that bomb's explosion hit. */
+const BURN_DAMAGE_RATIO = 0.15;
+/** One burn hit per enemy per tick, shared by every overlapping field. */
+const burnLock = new Map<number, number>();
+
+export function resetBombIds() {
+  idCounter = 5200;
+  burnLock.clear();
+}
 
 export function bombDamage(w: WeaponInstance): number {
   const d = CONFIG.weapons.bomb;
@@ -136,13 +144,19 @@ export function updateBomb(
         explosionTimer: 0,
         hitIds: new Set(),
         burnRadius: hasBurn ? bombExplosionRadius(w) * 0.7 : 0,
-        burnDamage: hasBurn ? bombDamage(w) * dmgMult * 0.3 : 0,
+        burnDamage: hasBurn ? bombDamage(w) * dmgMult * BURN_DAMAGE_RATIO : 0,
         burnDuration: hasBurn ? (w.level >= 8 ? 4 : 2.5) : 0,
         burnTimer: 0,
         burnTickTimer: 0,
         burnHitTimers: new Map(),
       });
     }
+  }
+
+  for (const [id, t] of burnLock) {
+    const nt = t - dt;
+    if (nt <= 0) burnLock.delete(id);
+    else burnLock.set(id, nt);
   }
 
   for (const b of bombs) {
@@ -198,12 +212,13 @@ export function updateBomb(
       if (b.burnTickTimer >= 0.5) {
         b.burnTickTimer = 0;
         for (const e of enemies) {
-          if (!e.alive || b.burnHitTimers.has(e.id)) continue;
+          if (!e.alive || b.burnHitTimers.has(e.id) || (burnLock.get(e.id) ?? 0) > 0) continue;
           const dx = b.x - e.x;
           const dy = b.y - e.y;
           const collideR = b.burnRadius + e.radius;
           if (dx * dx + dy * dy < collideR * collideR) {
             b.burnHitTimers.set(e.id, 0.5);
+            burnLock.set(e.id, 0.5);
             if (damageEnemy(e, b.burnDamage)) onKill();
           }
         }

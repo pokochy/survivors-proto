@@ -27,7 +27,7 @@ const load = (p) => server.ssrLoadModule(p);
 
 try {
   const { CONFIG, xpForLevel } = await load("/src/game/data/config.ts");
-  const { EVOLUTIONS } = await load("/src/game/data/evolutions.ts");
+  const { EVOLUTIONS, SUPER_EVOLUTIONS } = await load("/src/game/data/evolutions.ts");
   const P = await load("/src/game/data/progression.ts");
   const { AccessoryManager, allAccessoryTypes, accessoryName } = await load("/src/game/systems/AccessoryManager.ts");
   const { ALL_WEAPON_TYPES } = await load("/src/game/weapons/registry.ts");
@@ -100,13 +100,13 @@ try {
       ),
     aura: () =>
       table(
-        ["Lv", "틱 피해", "틱 간격(s)", "반경", "화상 피해", "넉백", "도달 시 효과"],
+        ["Lv", "틱 피해", "틱 간격(s)", "반경", "화상 피해", "도달 시 효과"],
         levels("aura").map((w) => {
           const s = A.createAuraState(w);
           const dmg = s.damage * (A.auraDoubleDamage(w) ? 2 : 1);
           return [
             lvLabel(w), n(dmg), n(s.tickInterval, 3), n(s.radius), s.burnDamage > 0 ? n(s.burnDamage) : "—",
-            yes(A.auraHasKnockback(w)), A.auraLevelEffect(w) ?? "",
+            A.auraLevelEffect(w) ?? "",
           ];
         }),
       ),
@@ -124,7 +124,7 @@ try {
         levels("claw").map((w) => {
           if (w.evolved) {
             const b = BR.createBreathState(w);
-            return [lvLabel(w), `${n(b.damage)} /틱(${b.tickInterval}s)`, n(b.cooldown, 2), `사거리 ${n(b.range)}`, "브레스 0.8s", "전방 화염 + 화상"];
+            return [lvLabel(w), `${n(b.damage)} /틱(${b.tickInterval}s)`, n(b.cooldown, 2), `사거리 ${n(b.range)}`, "브레스 0.8s · 60°", "이동 방향 입자 + 화상"];
           }
           const c = C.createClawState(w);
           return [lvLabel(w), n(c.damage), n(c.cooldown, 2), n(c.radius), C.clawSlashCount(w), C.clawLevelEffect(w) ?? ""];
@@ -146,6 +146,18 @@ try {
         `${accessoryName(EVOLUTIONS[t].pairedAccessory)} (\`${EVOLUTIONS[t].pairedAccessory}\`)`,
         EVOLUTIONS[t].evolvedName, EVOLUTIONS[t].desc,
       ]),
+    ),
+    "",
+    "## 초진화",
+    "",
+    "스페셜 캐릭터가 자신의 시작 무기를 진화시키면 일반 진화 대신 이 형태가 된다. 다른 캐릭터의 같은 무기는 위 진화 그대로다.",
+    "",
+    table(
+      ["캐릭터", "무기", "초진화", "설명"],
+      SUPER_EVOLUTIONS.map((s) => {
+        const who = P.CHARACTERS.find((c) => c.id === s.characterId);
+        return [who ? who.name : s.characterId, CONFIG.weapons[s.weapon].name, s.name, s.desc];
+      }),
     ),
     "",
     ...ALL_WEAPON_TYPES.flatMap((t) => [
@@ -203,12 +215,14 @@ try {
       ["항목", "값"],
       [
         ["첫 스폰 간격", `${e.spawnInterval}s`],
-        ["스폰마다 간격 배율", `×${e.spawnIntervalDecay}`],
-        ["최소 간격", `${e.spawnMinInterval}s`],
-        ["최대 동시 적 수", e.maxCount],
+        ["처음 1분", `초당 ×${e.spawnDecayPerSecond}`],
+        ["1분 이후", `분당 ×${e.spawnDecayPerMinute}. 최소 간격 없음`],
+        ["최대 동시 적 수", `${e.maxCount} × (1 + ${e.maxCountGrowthPerMinute} × 경과 분). 0분 ${e.maxCount}, 1분 ${e.maxCount * 2}, 2분 ${e.maxCount * 3}`],
         ["접촉 피해 쿨다운(적별)", `${e.contactDamageCooldown}s`],
-        ["엘리트 주기", `${el.spawnInterval}s마다 1마리 (상한과 무관)`],
-        ["엘리트 배율", `HP ×${el.hpMult} · 피해 ×${el.damageMult} · 속도 ×${el.speedMult} · 크기 ×${el.radiusMult}`],
+        ["엘리트 주기", `${el.spawnInterval}s마다 1마리 (상한과 무관). ${el.killSeconds}초 안에 처치하지 못하면 게임오버`],
+        ["엘리트 체력", `${el.hp} × ${el.hpPerMinute}^(경과 분). 종류와 무관. 0분 ${el.hp}, 1분 ${el.hp * el.hpPerMinute}, 2분 ${el.hp * el.hpPerMinute ** 2}`],
+        ["엘리트 배율", `피해 ×${el.damageMult} · 속도 ×${el.speedMult} · 크기 ×${el.radiusMult}`],
+        ["생성 시 체력", `일반 적: 기본 HP × ${e.hpPerMinute}^(경과 분). 이미 나온 적은 변하지 않음`],
         ["엘리트 보상", "보물 상자 → 획득 시 즉시 레벨업 선택지"],
       ],
     ),
@@ -225,7 +239,7 @@ try {
   }
   const levelDoc = [
     header("레벨·경험치 (Leveling)"),
-    `공식: \`xpToNext(L) = floor(${CONFIG.leveling.baseXpToNext} × ${CONFIG.leveling.xpGrowth}^(L-1))\` · 일반 보석 1개 = 1 XP (병합 보석은 합산)`,
+    `공식: L≤${CONFIG.leveling.xpGrowthLateFrom - 1} 은 \`floor(${CONFIG.leveling.baseXpToNext} × ${CONFIG.leveling.xpGrowth}^(L-1))\`, 그 이후는 \`floor(${CONFIG.leveling.baseXpToNext} × ${CONFIG.leveling.xpGrowth}^${CONFIG.leveling.xpGrowthLateFrom - 2} × ${CONFIG.leveling.xpGrowthLate}^(L-${CONFIG.leveling.xpGrowthLateFrom - 1}))\` · 일반 보석 1개 = 1 XP (병합 보석은 합산)`,
     "",
     table(["레벨 L", "L→L+1 필요 XP", "누적 XP"], lvRows),
     "",

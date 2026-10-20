@@ -52,11 +52,6 @@ export function refreshAura(aura: AuraState, w: WeaponInstance): void {
   }
 }
 
-// Knockback: Lv4+
-export function auraHasKnockback(w: WeaponInstance): boolean {
-  return w.evolved || w.level >= 4;
-}
-
 // Double damage ticks at Lv8
 export function auraDoubleDamage(w: WeaponInstance): boolean {
   return w.evolved || w.level >= 8;
@@ -66,7 +61,6 @@ export function auraLevelEffect(w: WeaponInstance): string | null {
   if (w.evolved) return null;
   const lv = w.level;
   if (lv === 3) return "틱 속도 증가";
-  if (lv === 4) return "넉백 효과";
   if (lv === 5) return "화염 지속 데미지";
   if (lv === 6) return "오오라 범위 증가";
   if (lv === 7) return "틱 속도 증가";
@@ -91,7 +85,6 @@ export function updateAura(
     aura.cachedEvolved = w.evolved;
   }
   const dmg = aura.damage * dmgMult * (auraDoubleDamage(w) ? 2 : 1);
-  const knockback = auraHasKnockback(w);
 
   // Tick timer for all enemies in radius
   aura.tickTimer += dt;
@@ -109,17 +102,6 @@ export function updateAura(
     const collideR = aura.radius + e.radius;
     if (dx * dx + dy * dy < collideR * collideR) {
       if (damageEnemy(e, dmg, mods?.critChance)) onKill();
-
-      // Knockback: push enemy away from player
-      if (knockback) {
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist > 0.1) {
-          // Evolved (Judgement Flame) has a stronger knockback, as its description promises
-          const force = w.evolved ? 60 : 40;
-          e.x += (dx / dist) * force;
-          e.y += (dy / dist) * force;
-        }
-      }
 
       // Apply burn DoT
       if (aura.burnDamage > 0) {

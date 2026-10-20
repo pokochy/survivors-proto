@@ -1,8 +1,9 @@
 // ============================================================
 //  assets/pixel/catalog.ts — what each pixel-art file is and how it is sliced.
 //
-//  Unit sheets (units/*): 64×64 = 4 columns × 4 rows of 16×16 frames.
+//  Unit sheets (units/*): 4 columns × 4 rows. Default frame is 16×16 (64×64 sheet).
 //    column = facing (0 down, 1 up, 2 left, 3 right), row = walk frame.
+//    Linya and Euroan are 32×32 LPC frames (see UNIT_FRAME_PX).
 //  Faces (faces/*): 38×38 portrait used by the UI.
 //  Strips (proj/*, fx/*, items/*): frames laid out horizontally; the frame width
 //    is listed below and the frame height is the image height.
@@ -11,6 +12,24 @@
 
 export const UNIT_FRAME = 16;
 export const UNIT_FRAMES = 4;
+
+/**
+ * Source frame size for sheets that are not 16×16.
+ * On-screen height still tracks the 16px cast — see UNIT_DRAW_SCALE.
+ */
+export const UNIT_FRAME_PX: Record<string, number> = {
+  "units/char-linya": 32,
+  "units/char-euroan": 32,
+};
+
+/**
+ * Extra draw scale. LPC frames have empty padding, so 1× would make them
+ * shorter than the 16px characters. 1.2 matches their on-screen height.
+ */
+export const UNIT_DRAW_SCALE: Record<string, number> = {
+  "units/char-linya": 1.2,
+  "units/char-euroan": 1.2,
+};
 
 /** Facing column in a unit sheet. */
 export const FACING = { down: 0, up: 1, left: 2, right: 3 } as const;

@@ -1,5 +1,5 @@
 // ============================================================
-//  SettingsPanel — graphics quality + SFX volume (used in the pause menu and the lobby).
+//  SettingsPanel — graphics quality + SFX volume (pause menu and the settings screen).
 // ============================================================
 
 import { Volume2, VolumeX } from "lucide-react";

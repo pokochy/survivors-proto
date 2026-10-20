@@ -1,6 +1,7 @@
 // ============================================================
 //  PixelSprite — pixel-art portraits and walking sprites for the UI
-//  (src/assets/pixel, Ninja Adventure CC0). Crisp scaling via image-rendering.
+//  (src/assets/pixel). Crisp scaling via image-rendering.
+//  Most sheets are Ninja Adventure (CC0, 16px frames). Linya and Euroan are 32px LPC.
 //
 //  <PixelFace kind="char" id="survivor" size={48} />   38×38 faceset, square
 //  <PixelWalker id="survivor" size={64} />            4-frame walk loop (CSS steps)
@@ -55,7 +56,7 @@ interface WalkerProps {
   className?: string;
 }
 
-/** Walking unit (sheet = 4 columns × 4 rows of 16px frames; rows animate). */
+/** Walking unit (sheet = 4 columns × 4 rows; rows animate). Source pixel size does not matter. */
 export function PixelWalker({ kind = "char", id, size, facing = 0, className = "" }: WalkerProps) {
   const sheet = kind === "char" ? characterSheet(id) : enemySheet(id);
   const url = sheet ? pixelUrl(sheet) : undefined;

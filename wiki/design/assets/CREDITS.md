@@ -8,7 +8,9 @@
 |---|---|---|---|
 | 아이콘 74종 | `src/assets/icons/*.svg` | game-icons.net — DarkZaitzev, Delapouite, Lorc, Sbed, Skoll, Willdabeast | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) — **출처 표기 필수** (로비 하단에 표기) |
 | 이펙트 텍스처 7종 (처치 별·레벨업 빛·총구 화염·폭발 불꽃·잔불 등) | `src/assets/fx/*.png` | Kenney — Particle Pack (128px 축소) | [CC0](http://creativecommons.org/publicdomain/zero/1.0/) |
-| 픽셀 아트 59종 (캐릭터·적 걷기 시트, 초상, 월드 타일, 투사체·이펙트·아이템) | `src/assets/pixel/` (원본 팩 전체: `art/ninja-adventure/`) | [Ninja Adventure Asset Pack](https://pixel-boy.itch.io/ninja-adventure-asset-pack) — Pixel-boy & AAA (GitHub 미러 `Untersander/Gladiator` 에서 받음) | [CC0](http://creativecommons.org/publicdomain/zero/1.0/) — `art/ninja-adventure/LICENSE.txt` |
+| 픽셀 아트 (리냐·에우로안 제외: 캐릭터·적 걷기 시트, 초상, 월드 타일, 투사체·이펙트·아이템) | `src/assets/pixel/` (원본 팩 전체: `art/ninja-adventure/`) | [Ninja Adventure Asset Pack](https://pixel-boy.itch.io/ninja-adventure-asset-pack) — Pixel-boy & AAA (GitHub 미러 `Untersander/Gladiator` 에서 받음) | [CC0](http://creativecommons.org/publicdomain/zero/1.0/) — `art/ninja-adventure/LICENSE.txt` |
+| 리냐 걷기 시트·초상 (고양이 수인) | `art/linya/` → `src/assets/pixel/units/char-linya.png`, `faces/char-linya.png` | Universal LPC 레이어 합성. 몸·눈: Redshrike, bluecarrot16, ElizaWy 외 LPC 기여자. 귀·꼬리·기모노·부츠: JaidynReiman. 머리: bluecarrot16, ElizaWy. 출처는 `art/linya/README.md` | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) — 몸과 눈이 동일조건변경허락이라 합성본도 동일 |
+| 에우로안 걷기 시트·초상 (빨간 머리 남성) | `art/euroan/` → `src/assets/pixel/units/char-euroan.png`, `faces/char-euroan.png` | Universal LPC 레이어 합성. 몸·머리: bluecarrot16, Redshrike 외. 머리색: JaidynReiman, MrBeast (bedhead). 트렌치: bluecarrot16. 부츠: JaidynReiman, Nila122. 출처는 `art/euroan/README.md` | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) — 몸·머리·코트가 동일조건변경허락이라 합성본도 동일 |
 | 16×16 던전 타일셋 II (게임 미사용, 라이브러리) | `art/0x72-dungeon-ii/` | [0x72 — DungeonTileset II](https://0x72.itch.io/dungeontileset-ii) (GitHub 미러 `veroteknic/godot2d`) | CC0 (작가 페이지 표기) |
 | 늑대 스프라이트 | `public/assets/enemy/Wolf.png` | 원본 프로젝트 포함 — **출처 미확인** | 미확인 (KI-06) |
 | 발톱 이미지 | `public/assets/weapon/claw.PNG` | 원본 프로젝트 포함 — **출처 미확인** | 미확인 (KI-06) |

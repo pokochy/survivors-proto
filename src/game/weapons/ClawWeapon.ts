@@ -5,7 +5,7 @@
 
 import { CONFIG } from "@/game/data/config";
 import type { ClawState, EnemyState, WeaponInstance } from "@/game/core/types";
-import { findNearestEnemy, damageEnemy } from "@/game/entities/EnemyManager";
+import { damageEnemy } from "@/game/entities/EnemyManager";
 import type { WeaponMods } from "@/game/core/types";
 import { EVOLUTIONS } from "@/game/data/evolutions";
 import { isLowQuality } from "@/game/render/quality";
@@ -46,6 +46,24 @@ const enemyBleeds = new Map<
 
 const BLEED_DURATION = 3.0;
 const BLEED_TICK_INTERVAL = 0.5;
+const SLASH_ARC = Math.PI * 0.6; // 108°, same cone as the hit check
+
+/** Nearest enemy in range, or a fresh random angle when the area is empty. */
+function aimSlash(enemies: EnemyState[], px: number, py: number, range: number): number {
+  let best: EnemyState | null = null;
+  let bestD2 = range * range;
+  for (const e of enemies) {
+    if (!e.alive || e.dying) continue;
+    const dx = e.x - px;
+    const dy = e.y - py;
+    const d2 = dx * dx + dy * dy;
+    if (d2 >= bestD2) continue;
+    bestD2 = d2;
+    best = e;
+  }
+  if (best) return Math.atan2(best.y - py, best.x - px);
+  return Math.random() * Math.PI * 2;
+}
 
 export function createClawState(w: WeaponInstance): ClawState {
   const d = CONFIG.weapons.claw;
@@ -152,8 +170,7 @@ export function updateClaw(
     if (state.slashHits.size === 0 || state.slashArc === 0) {
       // First frame of this slash — damage enemies within the slash arc
       if (state.slashHits.size === 0) {
-        const arcSpread = Math.PI * 0.6; // 108° total, matching the render arc
-        const halfSpread = arcSpread / 2;
+        const halfSpread = SLASH_ARC / 2;
         const slashAngle = state.slashBaseAngle;
         for (const e of enemies) {
           if (!e.alive || e.dying) continue;
@@ -211,7 +228,7 @@ export function updateClaw(
       state.slashTimer = 0;
       state.slashArc = 0;
       state.slashHits.clear();
-      // Keep the same direction as the first slash; no rotation between slashes
+      state.slashBaseAngle = aimSlash(enemies, px, py, state.radius + 50);
     }
     return;
   }
@@ -225,13 +242,7 @@ export function updateClaw(
     state.slashArc = 0;
     state.slashHits.clear();
     state.slashesRemaining = state.slashCount;
-    // Face the nearest enemy; random if none nearby
-    const target = findNearestEnemy(enemies, px, py, state.radius + 50);
-    if (target) {
-      state.slashBaseAngle = Math.atan2(target.y - py, target.x - px);
-    } else {
-      state.slashBaseAngle = Math.random() * Math.PI * 2;
-    }
+    state.slashBaseAngle = aimSlash(enemies, px, py, state.radius + 50);
   }
 }
 

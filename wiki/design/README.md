@@ -6,7 +6,7 @@
 | [art-direction.md](art-direction.md) | 아트 디렉션 — 현재 스타일 분석과 앞으로의 방향 |
 | [design-board.html](design-board.html) / [design-board.png](design-board.png) | 실제 사용 중인 아이콘·색·후보 에셋 한 장 보기 (`npm run dev` 후 `/wiki/design/design-board.html`) |
 | [assets/](assets/) | 후보 에셋 (Kenney 파티클·타일·샘플) + [CREDITS.md](assets/CREDITS.md) |
-| [`art/`](../../art/README.md) | 픽셀 아트 원본 팩 (Ninja Adventure 전체, 0x72 DungeonTileset II) — 게임은 이 중 일부만 복사해 씀 |
+| [`art/`](../../art/README.md) | 픽셀 아트 원본 팩 (Ninja Adventure 전체, 0x72 DungeonTileset II). 여기에 없으면 [Universal LPC 생성기](https://github.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator)도 본다. 게임은 필요한 프레임만 복사해 씀 |
 | [screenshots/](screenshots/) | 현재 화면 캡처 |
 
 ![design board](design-board.png)
@@ -69,10 +69,10 @@
 | 도감 | 적 초상 `faces/enemy-*` / 늑대 스프라이트, 상세에 "게임 내 모습"(걷기) + "저사양 모드"(도형), 무기·진화·장신구 아이콘 |
 | 업적 | 진화 무기 아이콘(미달성은 회색 + 자물쇠), `ui-star` 보상 |
 | 캔버스 — 표식 | 보물 상자 `ui-treasure`, 엘리트 왕관 `ui-crown`, 플레이어 원 안 `char-*` 엠블럼, 적 도형 안 `enemy-*` 엠블럼(저사양 끔) |
-| 캔버스 — 무기 | 회전검 `proj-blade` 칼날, 비도 `proj-dagger`(회귀 시 금색 `weapon-shuriken-evo`), 폭발탄 `weapon-bomb`/운석 `weapon-bomb-evo`, 트랩 `weapon-trap`/토템 `weapon-trap-evo` |
+| 캔버스 — 무기 | 회전검 `proj-blade` 칼날, 비도 `proj-dagger`(회귀 중에도 같은 비도), 폭발탄 `weapon-bomb`/운석 `weapon-bomb-evo`, 트랩 `weapon-trap`/토템 `weapon-trap-evo` |
 | 캔버스 — 이펙트 (Kenney, 저사양 끔) | 처치 `star`, 레벨업 `light_02`, 라이플 총구 `muzzle_02`, 폭발 `fire_01`, 잔불 `flame_01` |
 | 캔버스 — 월드 장식 (저사양 끔) | `decor-*` 10종(풀·돌·뼈·해골·버섯·비석·고목·거미줄·꽃·바위)을 280px 칸마다 해시로 배치, 배경보다 살짝 밝은 실루엣 (타일 월드 로딩 전에만) |
-| **캔버스 — 높음 품질 (픽셀 아트, `src/assets/pixel`)** | 월드 `tiles/floor·nature·detail` 청크 · 플레이어 `units/char-*` 4방향 걷기 · 적 `units/enemy-*` (+엘리트 금빛) · 그림자 `units/shadow` · 보석 크리스탈(nature 14행) · 상자 `items/chest` · 라이플 `proj/energy-ball` · 비도 `proj/kunai`/`proj/shuriken-magic` · 회전검 `items/sword`/`items/big-sword` · 폭발탄 `proj/canonball`/`proj/fireball` + `fx/circle-orange`·`fx/smoke`, 잔불 `fx/fire` · 트랩 `fx/circle-spark`(+`fx/thunder`) · 오오라 `fx/fire` 고리 · 발톱 `fx/claw` · 브레스 `fx/flam` · 처치 `fx/smoke`(+`fx/spark`) |
+| **캔버스 — 높음 품질 (픽셀 아트, `src/assets/pixel`)** | 월드 `tiles/floor·nature·detail` 청크 · 플레이어 `units/char-*` 4방향 걷기 · 적 `units/enemy-*` (+엘리트 금빛) · 그림자 `units/shadow` · 경험치 보석은 푸른 구체(뭉칠수록 진한 파랑) · 상자 `items/chest` · 라이플 `proj/energy-ball` · 비도 `proj/kunai` · 회전검 `items/sword`/`items/big-sword` · 폭발탄 `proj/canonball`/`proj/fireball` + `fx/circle-orange`·`fx/smoke`, 잔불 `fx/fire` · 트랩 `fx/circle-spark`(+`fx/thunder`) · 오오라 `fx/fire` 고리 · 발톱 `fx/claw` · 브레스 `fx/fire` 입자 · 처치 `fx/smoke`(+`fx/spark`) |
 
 ## 6. 스크린샷
 

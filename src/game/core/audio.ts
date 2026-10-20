@@ -104,13 +104,16 @@ function playNoise(duration: number, volume: number): void {
   source.start(now);
 }
 
-let lastHitSound = 0;
+// The hit tone lasts 70ms. A packed crowd used to retrigger every 30ms, so the
+// square waves stacked and got loud. One voice, and not again until it has ended.
+const HIT_DURATION_MS = 70;
+let hitBusyUntil = 0;
 
 export function playHitSound(): void {
   const now = performance.now();
-  if (now - lastHitSound < 30) return;
-  lastHitSound = now;
-  playTone(180, 70, 0.07, 0.045, "square");
+  if (now < hitBusyUntil) return;
+  hitBusyUntil = now + HIT_DURATION_MS;
+  playTone(180, 70, HIT_DURATION_MS / 1000, 0.045, "square");
 }
 
 export function playHurtSound(): void {

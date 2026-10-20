@@ -3,7 +3,8 @@ import { ArrowLeft, Skull, Sword, ChevronRight, ChevronLeft, Sparkles, Flame, Ge
 import { CONFIG } from "@/game/data/config";
 import { allWeaponTypes, weaponName, weaponDesc, weaponMaxLevel } from "@/game/systems/WeaponManager";
 import { allAccessoryTypes, accessoryName, accessoryDesc, accessoryMaxLevel } from "@/game/systems/AccessoryManager";
-import { EVOLUTIONS } from "@/game/data/evolutions";
+import { EVOLUTIONS, SUPER_EVOLUTIONS } from "@/game/data/evolutions";
+import { CHARACTERS } from "@/game/data/progression";
 import { bulletBurstCount, bulletBurstPause } from "@/game/weapons/BulletWeapon";
 import { weaponLevelEffectAt } from "@/game/weapons/registry";
 import { accessoryColor, weaponColor } from "@/ui/theme";
@@ -258,7 +259,7 @@ export function CodexScreen({ onBack }: CodexScreenProps) {
 }
 
 function getWeaponLevelEffect(type: WeaponType, level: number): string | null {
-  const mockW: WeaponInstance = { type, level, cooldownTimer: 0, burstShotsLeft: 0, burstTimer: 0, evolved: false };
+  const mockW: WeaponInstance = { type, level, cooldownTimer: 0, burstShotsLeft: 0, burstTimer: 0, evolved: false, super: false };
   return weaponLevelEffectAt(mockW, level);
 }
 
@@ -316,9 +317,9 @@ function EnemyDetail({ enemy, onBack }: { enemy: EnemyInfo; onBack: () => void }
         <p className="text-slate-400 text-xs leading-relaxed">
           등장 시간: {Math.floor(enemy.unlockedTime / 60)}분 {enemy.unlockedTime % 60}초 이후
           <br />
-          스폰 간격: {CONFIG.enemy.spawnInterval}초 ~ 최소 {CONFIG.enemy.spawnMinInterval}초 (점점 빨라짐)
+          스폰 간격: {CONFIG.enemy.spawnInterval}초에서 시작. 처음 1분은 초당 ×{CONFIG.enemy.spawnDecayPerSecond}, 이후 분당 ×{CONFIG.enemy.spawnDecayPerMinute}
           <br />
-          동시 최대 수: {CONFIG.enemy.maxCount}마리
+          동시 최대 수: {CONFIG.enemy.maxCount}마리에서 시작, 분당 100%p씩 증가
           <br />
           접촉 피해 쿨다운: {CONFIG.enemy.contactDamageCooldown}초
         </p>
@@ -341,7 +342,7 @@ function WeaponDetail({ type, onBack }: { type: WeaponType; onBack: () => void }
   };
   const getCooldown = (lv: number) => {
     if (type === "bullet") {
-      const mockW: WeaponInstance = { type, level: lv, cooldownTimer: 0, burstShotsLeft: 0, burstTimer: 0, evolved: false };
+      const mockW: WeaponInstance = { type, level: lv, cooldownTimer: 0, burstShotsLeft: 0, burstTimer: 0, evolved: false, super: false };
       return `${bulletBurstCount(mockW)}연사 / ${bulletBurstPause(mockW).toFixed(2)}초`;
     }
     const cfg = wcfg as { baseCooldown: number; cooldownGrowth: number };
@@ -516,6 +517,14 @@ function EvolutionDetail({ type, onBack }: { type: WeaponType; onBack: () => voi
           </div>
           <h2 className="text-xl font-bold text-amber-200">{evo.evolvedName}</h2>
           <p className="text-slate-300 text-sm mt-1">{evo.desc}</p>
+          {SUPER_EVOLUTIONS.filter((s) => s.weapon === type).map((s) => {
+            const who = CHARACTERS.find((c) => c.id === s.characterId)?.name ?? s.characterId;
+            return (
+              <p key={s.characterId} className="text-fuchsia-300 text-sm mt-2">
+                초진화 ({who}): {s.name} — {s.desc}
+              </p>
+            );
+          })}
         </div>
       </div>
 
@@ -526,6 +535,12 @@ function EvolutionDetail({ type, onBack }: { type: WeaponType; onBack: () => voi
           <span className="text-violet-300 font-semibold">{accessoryName(evo.pairedAccessory)}</span> 보유
           <br />
           진화 시 무기는 <span className="text-amber-300 font-semibold">최종 형태</span>로 고정되며 더 이상 레벨업할 수 없습니다.
+          {SUPER_EVOLUTIONS.some((s) => s.weapon === type) && (
+            <>
+              <br />
+              해당 시작 무기를 가진 스페셜 캐릭터만 위의 초진화로 바뀝니다.
+            </>
+          )}
         </p>
       </div>
 

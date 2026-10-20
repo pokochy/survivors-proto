@@ -9,7 +9,7 @@
 // ============================================================
 
 import { pixelUrl } from "@/assets/pixel";
-import { STRIP_FRAME_W, UNIT_FRAME, UNIT_FRAMES } from "@/assets/pixel/catalog";
+import { STRIP_FRAME_W, UNIT_DRAW_SCALE, UNIT_FRAME, UNIT_FRAME_PX, UNIT_FRAMES } from "@/assets/pixel/catalog";
 
 const images = new Map<string, HTMLImageElement>();
 const tinted = new Map<string, HTMLCanvasElement>();
@@ -100,11 +100,12 @@ export function drawUnit(
   const img = getPixelImage(sheet);
   if (!img) return false;
   const src = opts?.tint ? getTinted(sheet, img, opts.tint, opts.tintAmount ?? 0.35) : img;
-  const s = UNIT_FRAME * scale;
+  const framePx = UNIT_FRAME_PX[sheet] ?? UNIT_FRAME;
+  const s = UNIT_FRAME * scale * (UNIT_DRAW_SCALE[sheet] ?? 1);
   if (opts?.shadow !== false) drawShadow(ctx, x, y + s * 0.42, scale);
   const row = ((frame % UNIT_FRAMES) + UNIT_FRAMES) % UNIT_FRAMES;
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(src, facing * UNIT_FRAME, row * UNIT_FRAME, UNIT_FRAME, UNIT_FRAME, Math.round(x - s / 2), Math.round(y - s / 2), s, s);
+  ctx.drawImage(src, facing * framePx, row * framePx, framePx, framePx, Math.round(x - s / 2), Math.round(y - s / 2), s, s);
   ctx.imageSmoothingEnabled = true;
   return true;
 }
@@ -147,6 +148,41 @@ export function drawStrip(
     ctx.translate(x, y);
     ctx.rotate(angle);
     ctx.drawImage(img, f * fw, 0, fw, fh, -w / 2, -h / 2, w, h);
+    ctx.restore();
+  }
+  ctx.imageSmoothingEnabled = true;
+  return true;
+}
+
+/** Same as drawStrip, with a cached color laid over the opaque pixels. */
+export function drawTintedStrip(
+  ctx: CanvasRenderingContext2D,
+  name: string,
+  frame: number,
+  x: number,
+  y: number,
+  scale: number,
+  angle: number,
+  color: string,
+  amount: number,
+): boolean {
+  const img = getPixelImage(name);
+  if (!img) return false;
+  const src = getTinted(name, img, color, amount);
+  const fw = STRIP_FRAME_W[name] ?? img.naturalWidth;
+  const fh = img.naturalHeight;
+  const n = Math.max(1, Math.floor(img.naturalWidth / fw));
+  const f = ((Math.floor(frame) % n) + n) % n;
+  const w = fw * scale;
+  const h = fh * scale;
+  ctx.imageSmoothingEnabled = false;
+  if (angle === 0) {
+    ctx.drawImage(src, f * fw, 0, fw, fh, x - w / 2, y - h / 2, w, h);
+  } else {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.drawImage(src, f * fw, 0, fw, fh, -w / 2, -h / 2, w, h);
     ctx.restore();
   }
   ctx.imageSmoothingEnabled = true;

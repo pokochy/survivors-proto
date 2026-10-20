@@ -61,7 +61,7 @@ export const EVOLUTIONS: Record<WeaponType, EvolutionDef> = {
     weapon: "aura",
     pairedAccessory: "magnetCharm",
     evolvedName: "심판의 화염",
-    desc: "오오라 범위 1.5배 · 화염 데미지 2배 · 넉백 강화",
+    desc: "오오라 범위 1.5배 · 화염 데미지 2배",
     damageMult: 2.0,
     cooldownMult: 0.5,
     effect: "huge_aura",
@@ -79,12 +79,46 @@ export const EVOLUTIONS: Record<WeaponType, EvolutionDef> = {
     weapon: "claw",
     pairedAccessory: "natureBlessing",
     evolvedName: "브레스",
-    desc: "전방에 화염 숨결 · 광역 화염 데미지 · 출혈 지속 데미지",
+    desc: "이동 방향으로 60° 화염 입자 · 맞은 적 화상",
     damageMult: 1.6,
     cooldownMult: 0.6,
     effect: "breath",
   },
 };
+
+/**
+ * Super evolution: a special character evolving their own starting weapon
+ * replaces the normal evolution with a stronger form.
+ */
+export interface SuperEvolutionDef {
+  characterId: string;
+  weapon: WeaponType;
+  name: string;
+  desc: string;
+}
+
+export const SUPER_EVOLUTIONS: SuperEvolutionDef[] = [
+  {
+    characterId: "linya",
+    weapon: "shuriken",
+    name: "비도 난무",
+    desc: "비도 20개 · 전방위 투척 · 부메랑 회귀 · 관통 무한",
+  },
+  {
+    characterId: "euroan",
+    weapon: "claw",
+    name: "레인보우 브레스",
+    desc: "길이·각도 1.5배 · 끊기지 않는 무지개 숨결 · 화상",
+  },
+];
+
+export function superEvolutionFor(
+  characterId: string | undefined,
+  weapon: WeaponType,
+): SuperEvolutionDef | null {
+  if (!characterId) return null;
+  return SUPER_EVOLUTIONS.find((s) => s.characterId === characterId && s.weapon === weapon) ?? null;
+}
 
 /** Check if a weapon meets evolution conditions. */
 export function canEvolve(

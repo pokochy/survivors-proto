@@ -25,6 +25,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
@@ -129,15 +130,20 @@ namespace SurvivorsLauncher
                     int h = Math.Min(920, (int)(area.Height * 0.92));
                     int x = area.Left + (area.Width - w) / 2;
                     int y = area.Top + (area.Height - h) / 2;
+                    // --edge-skip-compat-layer-relaunch: Edge가 호환성 레이어로 다시 뜨며
+                    // 일반 브라우저 창을 하나 더 만드는 동작을 막는다.
+                    // user-data-dir 를 URL보다 앞에 둬야 이미 켜진 기본 브라우저로 주소가 넘어가지 않는다.
                     string args =
-                        "--app=\"" + url + "\"" +
-                        " --user-data-dir=\"" + profileDir + "\"" +
+                        "--user-data-dir=\"" + profileDir + "\"" +
+                        " --edge-skip-compat-layer-relaunch" +
                         " --no-first-run --no-default-browser-check --disable-sync" +
+                        " --app=\"" + url + "\"" +
                         " --window-size=" + w + "," + h +
                         " --window-position=" + x + "," + y;
                     ProcessStartInfo psi = new ProcessStartInfo(browser, args);
                     psi.UseShellExecute = false;
-                    Process.Start(psi);
+                    Process proc = Process.Start(psi);
+                    if (proc != null) WatchAndCloseStrayBrowserWindows(proc.Id);
                 }
                 else
                 {
@@ -173,6 +179,65 @@ namespace SurvivorsLauncher
                 if (!string.IsNullOrEmpty(c) && File.Exists(c)) return c;
             }
             return null;
+        }
+
+        // Edge/Chrome --app 는 가끔 같은 프로세스에 주소창 있는 일반 창을 하나 더 연다.
+        // 페이지 제목만 있는 게임 창은 두고, 브라우저 이름이 붙은 창만 닫는다.
+        private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+        [DllImport("user32.dll")]
+        private static extern bool IsWindowVisible(IntPtr hWnd);
+        [DllImport("user32.dll")]
+        private static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+        [DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+        [DllImport("user32.dll")]
+        private static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+        private const uint WM_CLOSE = 0x0010;
+
+        private static void WatchAndCloseStrayBrowserWindows(int browserPid)
+        {
+            Thread watcher = new Thread(delegate ()
+            {
+                for (int i = 0; i < 16; i++)
+                {
+                    Thread.Sleep(500);
+                    try
+                    {
+                        CloseStrayBrowserWindows(browserPid);
+                    }
+                    catch (Exception)
+                    {
+                        // 창 열거 실패는 게임을 막지 않는다
+                    }
+                }
+            });
+            watcher.IsBackground = true;
+            watcher.Start();
+        }
+
+        private static void CloseStrayBrowserWindows(int browserPid)
+        {
+            EnumWindows(delegate (IntPtr hWnd, IntPtr lParam)
+            {
+                if (!IsWindowVisible(hWnd)) return true;
+                uint pid;
+                GetWindowThreadProcessId(hWnd, out pid);
+                if (pid != (uint)browserPid) return true;
+                StringBuilder sb = new StringBuilder(512);
+                if (GetWindowText(hWnd, sb, sb.Capacity) <= 0) return true;
+                string title = sb.ToString();
+                if (title.IndexOf("Survivors", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+                if (title.IndexOf("Edge", StringComparison.Ordinal) >= 0 ||
+                    title.IndexOf("Chrome", StringComparison.Ordinal) >= 0)
+                {
+                    PostMessage(hWnd, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
+                }
+                return true;
+            }, IntPtr.Zero);
         }
 
         // ---------------------------------------------------------------- 수명 관리
